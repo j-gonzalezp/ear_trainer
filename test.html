@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Rhythm Generator</title>
+</head>
+<body>
+  <h1>Test Rhythm Generator</h1>
+  <button onclick="testRhythm()">Generar Ritmo</button>
+  <pre id="output"></pre>
+
+  <script>
+    function rhythmGenerator({ 
+      totalBeats = 4, 
+      shortestDuration = "8n", 
+      longestDuration = "2n", 
+      n = 4, 
+      allowRests = true,
+      restProbability = 0.2 
+    } = {}) {
+      const durationToValue = (duration) => {
+        const durationMap = {
+          "1n": 4,
+          "2n": 2,
+          "4n": 1,
+          "8n": 0.5,
+          "16n": 0.25,
+          "32n": 0.125,
+          "64n": 0.0625
+        };
+        return durationMap[duration] || 0;
+      };
+
+      const minDuration = durationToValue(shortestDuration);
+      const maxDuration = durationToValue(longestDuration);
+      
+      const getRandomDuration = (maxAllowed) => {
+        const possibleDurations = [];
+        let current = minDuration;
+        
+        while (current <= maxDuration && current <= maxAllowed) {
+          possibleDurations.push(current);
+          current *= 2;
+        }
+        
+        if (possibleDurations.length === 0) {
+          return minDuration;
+        }
+        
+        const randomIndex = Math.floor(Math.random() * possibleDurations.length);
+        return possibleDurations[randomIndex];
+      };
+      
+      const valueToNotation = (value) => {
+        const valueMap = {
+          4: "1n",
+          2: "2n",
+          1: "4n",
+          0.5: "8n",
+          0.25: "16n",
+          0.125: "32n",
+          0.0625: "64n"
+        };
+        return valueMap[value] || "4n";
+      };
+      
+      const rhythm = [];
+      let remainingBeats = totalBeats;
+      let remainingNotes = n;
+      
+      while (remainingNotes > 0) {
+        const maxAllowedDuration = remainingBeats - ((remainingNotes - 1) * minDuration);
+        
+        if (maxAllowedDuration < minDuration) {
+          console.warn("No es posible generar el ritmo con los parámetros dados");
+          return [];
+        }
+        
+        const isRest = allowRests && Math.random() < restProbability;
+        const duration = getRandomDuration(maxAllowedDuration);
+        
+        rhythm.push({
+          duration: valueToNotation(duration),
+          time: totalBeats - remainingBeats,
+          value: duration,
+          isRest
+        });
+        
+        remainingBeats -= duration;
+        remainingNotes--;
+      }
+      
+      return rhythm;
+    }
+    
+    function testRhythm() {
+      const rhythm = rhythmGenerator();
+      document.getElementById('output').textContent = JSON.stringify(rhythm, null, 2);
+    }
+  </script>
+</body>
+</html>
