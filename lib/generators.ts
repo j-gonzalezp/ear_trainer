@@ -190,13 +190,19 @@ export const availableNotes = ({
     noteToDegreeMap[note] = degree;
   });
 
-  // Filter notes in range based on the selected degrees (notes)
+  // Filter notes in range based on the selected degrees (notes) or actual notes
   const result = notesInRange.filter(fullNote => {
     // Extract the note name without octave
     const noteName = fullNote.replace(/\d+$/, '');
     
+    // Check if this note is in the selected notes array
+    if (notes.includes(noteName)) {
+      return true;
+    }
+    
     // Check if this note corresponds to any of the selected degrees
-    return notes.includes(noteName);
+    const degree = noteToDegreeMap[noteName];
+    return notes.includes(degree);
   });
 
   // Sort the result by key if needed
@@ -219,4 +225,80 @@ export const availableNotes = ({
   }
 
   return result;
+};
+
+// Helper function to get degree from note based on a key
+export const getDegreeFromNote = (note: string, key: string): string => {
+  const chromaticNotes: string[] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+  ];
+  
+  // Extract the note name without octave
+  const noteName = note.replace(/\d+$/, '');
+  
+  // Get the index of the key and note
+  const keyIndex = chromaticNotes.indexOf(key);
+  const noteIndex = chromaticNotes.indexOf(noteName);
+  
+  if (keyIndex === -1 || noteIndex === -1) {
+    return "?";
+  }
+  
+  // Calculate the degree index (0-11)
+  let degreeIndex = (noteIndex - keyIndex + 12) % 12;
+  
+  // Convert to degree name
+  let degree;
+  switch (degreeIndex) {
+    case 0: degree = "1"; break;
+    case 1: degree = "1#"; break;
+    case 2: degree = "2"; break;
+    case 3: degree = "2#"; break;
+    case 4: degree = "3"; break;
+    case 5: degree = "4"; break;
+    case 6: degree = "4#"; break;
+    case 7: degree = "5"; break;
+    case 8: degree = "5#"; break;
+    case 9: degree = "6"; break;
+    case 10: degree = "6#"; break;
+    case 11: degree = "7"; break;
+    default: degree = "?";
+  }
+  
+  return degree;
+};
+
+// Helper function to get note from degree based on a key
+export const getNoteFromDegree = (degree: string, key: string): string => {
+  const chromaticNotes: string[] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+  ];
+  
+  // Get the index of the key
+  const keyIndex = chromaticNotes.indexOf(key);
+  if (keyIndex === -1) {
+    return "?";
+  }
+  
+  // Map degree to semitone offset
+  let semitoneOffset: number;
+  switch (degree) {
+    case "1": semitoneOffset = 0; break;
+    case "1#": semitoneOffset = 1; break;
+    case "2": semitoneOffset = 2; break;
+    case "2#": semitoneOffset = 3; break;
+    case "3": semitoneOffset = 4; break;
+    case "4": semitoneOffset = 5; break;
+    case "4#": semitoneOffset = 6; break;
+    case "5": semitoneOffset = 7; break;
+    case "5#": semitoneOffset = 8; break;
+    case "6": semitoneOffset = 9; break;
+    case "6#": semitoneOffset = 10; break;
+    case "7": semitoneOffset = 11; break;
+    default: return "?";
+  }
+  
+  // Calculate the note index
+  const noteIndex = (keyIndex + semitoneOffset) % 12;
+  return chromaticNotes[noteIndex];
 };
