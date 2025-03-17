@@ -7,6 +7,7 @@ import MelodyGenerator from '@/components/melodyGenerator';
 interface PianoKey {
     note: string;
     isSharp: boolean;
+    degree: string;
 }
 
 const Page = () => {
@@ -22,20 +23,59 @@ const Page = () => {
 
     const [regenerationKey, setRegenerationKey] = useState<number>(0);
 
-    const pianoKeys: PianoKey[] = [
-        { note: "C", isSharp: false },
-        { note: "C#", isSharp: true },
-        { note: "D", isSharp: false },
-        { note: "D#", isSharp: true },
-        { note: "E", isSharp: false },
-        { note: "F", isSharp: false },
-        { note: "F#", isSharp: true },
-        { note: "G", isSharp: false },
-        { note: "G#", isSharp: true },
-        { note: "A", isSharp: false },
-        { note: "A#", isSharp: true },
-        { note: "B", isSharp: false }
+    // Define all notes in chromatic order
+    const chromaticNotes: string[] = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
     ];
+
+    // Calculate degree map based on current musical key
+    const getDegreeMap = (keyNote: string): Record<string, string> => {
+        const keyIndex = chromaticNotes.indexOf(keyNote);
+        if (keyIndex === -1) return {};
+
+        const degreeMap: Record<string, string> = {};
+        
+        // Map all notes to their degree relative to the key
+        for (let i = 0; i < chromaticNotes.length; i++) {
+            const noteIndex = (keyIndex + i) % chromaticNotes.length;
+            const note = chromaticNotes[noteIndex];
+            
+            // Define degree based on position
+            let degree;
+            switch (i) {
+                case 0: degree = "1"; break;
+                case 1: degree = "1#"; break;
+                case 2: degree = "2"; break;
+                case 3: degree = "2#"; break;
+                case 4: degree = "3"; break;
+                case 5: degree = "4"; break;
+                case 6: degree = "4#"; break;
+                case 7: degree = "5"; break;
+                case 8: degree = "5#"; break;
+                case 9: degree = "6"; break;
+                case 10: degree = "6#"; break;
+                case 11: degree = "7"; break;
+                default: degree = "?";
+            }
+            
+            degreeMap[note] = degree;
+        }
+        
+        return degreeMap;
+    };
+
+    // Get piano keys with degrees
+    const getPianoKeysWithDegrees = (): PianoKey[] => {
+        const degreeMap = getDegreeMap(musicalKey);
+        
+        return chromaticNotes.map(note => ({
+            note,
+            isSharp: note.includes('#'),
+            degree: degreeMap[note] || '?'
+        }));
+    };
+
+    const pianoKeys = getPianoKeysWithDegrees();
 
     const handleKeyClick = (noteKey: string) => {
         if (notes.includes(noteKey)) {
@@ -61,8 +101,8 @@ const Page = () => {
     const noteOptions: string[] = [];
 
     octaves.forEach(octave => {
-        pianoKeys.forEach(key => {
-            noteOptions.push(`${key.note}${octave}`);
+        chromaticNotes.forEach(key => {
+            noteOptions.push(`${key}${octave}`);
         });
     });
 
@@ -106,49 +146,15 @@ const Page = () => {
         }
     };
 
+    // Effect to update notes when musical key changes
+    useEffect(() => {
+        // Could add functionality here to update notes based on key change if desired
+    }, [musicalKey]);
+
     return (
         <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-md" style={{ backgroundColor: 'white', color: 'black' }}>
             <h1 className="text-xl font-bold text-center mb-4" style={{ color: 'black' }}>Control Musical</h1>
-
-            <div className="mb-4">
-                <label className="block text-sm font-medium mb-2" style={{ color: 'black' }}>Seleccionar Notas:</label>
-                <div className="flex relative h-32 mb-4">
-                    {pianoKeys.map((pianoKey, index) => (
-                        <div key={index} className="relative" style={{ zIndex: pianoKey.isSharp ? 1 : 0 }}>
-                            {!pianoKey.isSharp && (
-                                <div
-                                    onClick={() => handleKeyClick(pianoKey.note)}
-                                    className="cursor-pointer border border-black"
-                                    style={{
-                                        width: '28px',
-                                        height: '120px',
-                                        backgroundColor: notes.includes(pianoKey.note) ? '#e0e0e0' : 'white',
-                                        borderRadius: '0 0 4px 4px',
-                                        display: 'inline-block',
-                                    }}
-                                ></div>
-                            )}
-                            {pianoKey.isSharp && (
-                                <div
-                                    onClick={() => handleKeyClick(pianoKey.note)}
-                                    className="cursor-pointer absolute"
-                                    style={{
-                                        width: '18px',
-                                        height: '70px',
-                                        backgroundColor: notes.includes(pianoKey.note) ? '#666' : 'black',
-                                        position: 'absolute',
-                                        right: '-9px',
-                                        top: 0,
-                                        zIndex: 1,
-                                        borderRadius: '0 0 4px 4px',
-                                    }}
-                                ></div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-
+            
             <div className="mb-4">
                 <label className="block text-sm font-medium mb-1" style={{ color: 'black' }}>Tecla Musical:</label>
                 <select
@@ -170,6 +176,74 @@ const Page = () => {
                     <option value="A#">La# (A#)</option>
                     <option value="B">Si (B)</option>
                 </select>
+            </div>
+
+            <div className="mb-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'black' }}>Seleccionar Grados:</label>
+                <div className="flex relative h-32 mb-4">
+                    {pianoKeys.map((pianoKey, index) => (
+                        <div key={index} className="relative" style={{ zIndex: pianoKey.isSharp ? 1 : 0 }}>
+                            {!pianoKey.isSharp && (
+                                <div
+                                    onClick={() => handleKeyClick(pianoKey.note)}
+                                    className="cursor-pointer border border-black"
+                                    style={{
+                                        width: '28px',
+                                        height: '120px',
+                                        backgroundColor: notes.includes(pianoKey.note) ? '#e0e0e0' : 'white',
+                                        borderRadius: '0 0 4px 4px',
+                                        display: 'inline-block',
+                                        position: 'relative',
+                                    }}
+                                >
+                                    <span 
+                                        style={{ 
+                                            position: 'absolute', 
+                                            bottom: '5px', 
+                                            left: '50%', 
+                                            transform: 'translateX(-50%)',
+                                            fontSize: '10px',
+                                            fontWeight: 'bold',
+                                            color: 'black'
+                                        }}
+                                    >
+                                        {pianoKey.degree}
+                                    </span>
+                                </div>
+                            )}
+                            {pianoKey.isSharp && (
+                                <div
+                                    onClick={() => handleKeyClick(pianoKey.note)}
+                                    className="cursor-pointer absolute"
+                                    style={{
+                                        width: '18px',
+                                        height: '70px',
+                                        backgroundColor: notes.includes(pianoKey.note) ? '#666' : 'black',
+                                        position: 'absolute',
+                                        right: '-9px',
+                                        top: 0,
+                                        zIndex: 1,
+                                        borderRadius: '0 0 4px 4px',
+                                    }}
+                                >
+                                    <span 
+                                        style={{ 
+                                            position: 'absolute', 
+                                            bottom: '5px', 
+                                            left: '50%', 
+                                            transform: 'translateX(-50%)',
+                                            fontSize: '8px',
+                                            fontWeight: 'bold',
+                                            color: 'white' 
+                                        }}
+                                    >
+                                        {pianoKey.degree}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="mb-4">
@@ -251,15 +325,19 @@ const Page = () => {
             </div>
 
             <div className="mb-4">
-                <label className="block text-sm font-medium mb-2" style={{ color: 'black' }}>Notas seleccionadas:</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: 'black' }}>Grados seleccionados:</label>
                 <div className="flex flex-wrap gap-2">
                     {notes.length > 0 ?
-                        notes.map((note, index) => (
-                            <div key={index} className="px-3 py-1 rounded-full" style={{ backgroundColor: '#f0f0f0', color: 'black', border: '1px solid #ddd' }}>
-                                {note}
-                            </div>
-                        )) :
-                        <p style={{ color: '#666', fontStyle: 'italic' }}>No hay notas seleccionadas</p>
+                        notes.map((note, index) => {
+                            const degreeMap = getDegreeMap(musicalKey);
+                            const degree = degreeMap[note] || '?';
+                            return (
+                                <div key={index} className="px-3 py-1 rounded-full" style={{ backgroundColor: '#f0f0f0', color: 'black', border: '1px solid #ddd' }}>
+                                    {note} ({degree})
+                                </div>
+                            );
+                        }) :
+                        <p style={{ color: '#666', fontStyle: 'italic' }}>No hay grados seleccionados</p>
                     }
                 </div>
                 <button

@@ -147,24 +147,76 @@ export const availableNotes = ({
     return notesInRange;
   }
 
-  const result = notesInRange.filter(note => {
-    const noteName = note.replace(/\d+$/, '');
+  // Define all notes in chromatic order
+  const chromaticNotes: string[] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+  ];
+
+  // Get the index of the selected key
+  const keyIndex = chromaticNotes.indexOf(keyId);
+  if (keyIndex === -1) {
+    return notesInRange;
+  }
+
+  // Create a map for all degrees based on the musical key
+  const degreeToNoteMap: Record<string, string> = {};
+  for (let i = 0; i < chromaticNotes.length; i++) {
+    const noteIndex = (keyIndex + i) % chromaticNotes.length;
+    const note = chromaticNotes[noteIndex];
+    
+    let degree;
+    switch (i) {
+      case 0: degree = "1"; break;
+      case 1: degree = "1#"; break;
+      case 2: degree = "2"; break;
+      case 3: degree = "2#"; break;
+      case 4: degree = "3"; break;
+      case 5: degree = "4"; break;
+      case 6: degree = "4#"; break;
+      case 7: degree = "5"; break;
+      case 8: degree = "5#"; break;
+      case 9: degree = "6"; break;
+      case 10: degree = "6#"; break;
+      case 11: degree = "7"; break;
+      default: degree = "?";
+    }
+    
+    degreeToNoteMap[degree] = note;
+  }
+
+  // Create a reverse map from note to degree
+  const noteToDegreeMap: Record<string, string> = {};
+  Object.entries(degreeToNoteMap).forEach(([degree, note]) => {
+    noteToDegreeMap[note] = degree;
+  });
+
+  // Filter notes in range based on the selected degrees (notes)
+  const result = notesInRange.filter(fullNote => {
+    // Extract the note name without octave
+    const noteName = fullNote.replace(/\d+$/, '');
+    
+    // Check if this note corresponds to any of the selected degrees
     return notes.includes(noteName);
   });
 
-
+  // Sort the result by key if needed
   if (keyId && keyId.length > 0) {
-
-    const keyIndex = result.findIndex(note => note.replace(/\d+$/, '') === keyId);
+    // Find the key note in the filtered result set
+    const keyNotes = result.filter(note => note.replace(/\d+$/, '') === keyId);
     
-    if (keyIndex !== -1) {
-   
-      const beforeKey = result.slice(0, keyIndex);
-      const fromKey = result.slice(keyIndex);
-      return [...fromKey, ...beforeKey];
+    if (keyNotes.length > 0) {
+      // Sort the result to start with the key note (lowest octave)
+      const firstKeyNote = keyNotes[0];
+      const firstKeyIndex = result.indexOf(firstKeyNote);
+      
+      if (firstKeyIndex !== -1) {
+        // Reorder array to start with the key
+        const beforeKey = result.slice(0, firstKeyIndex);
+        const fromKey = result.slice(firstKeyIndex);
+        return [...fromKey, ...beforeKey];
+      }
     }
   }
 
   return result;
 };
-
