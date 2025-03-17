@@ -219,57 +219,62 @@ const MelodyGenerator: React.FC<MelodyGeneratorProps> = ({
     return notes[noteIndex] + (octave + octaveShift);
   };
   
-const playCadence = async () => {
-  if (Tone.context.state !== "running") {
-    await Tone.start();
-  }
+  const playCadence = async () => {
+    if (Tone.context.state !== "running") {
+      await Tone.start();
+    }
   
-  if (isPlayingCadence || isPlaying) {
-    stopCadence();
-    stopPlaying();
-    return;
-  }
+    if (isPlayingCadence || isPlaying) {
+      stopCadence();
+      stopPlaying();
+      return;
+    }
   
-  setIsPlayingCadence(true);
+    setIsPlayingCadence(true);
   
-  const chords = getCadenceChords();
-  if (chords.length === 0 || !pianoRef.current) {
-    setIsPlayingCadence(false);
-    return;
-  }
+    const chords = getCadenceChords();
+    if (chords.length === 0 || !pianoRef.current) {
+      setIsPlayingCadence(false);
+      return;
+    }
   
-  if (cadenceRef.current) {
-    cadenceRef.current.dispose();
-  }
+    if (cadenceRef.current) {
+      cadenceRef.current.dispose();
+    }
   
-  let chordIndex = 0;
-  cadenceRef.current = new Tone.Sequence(
-    (time, chord) => {
-      if (chord && Array.isArray(chord) && pianoRef.current) {
-        // Ensure chord is an array before using forEach
-        chord.forEach(note => {
-          pianoRef.current?.triggerAttackRelease(note, "2n", time);
-        });
+    let chordIndex = 0;
+  
+    cadenceRef.current = new Tone.Part((time, chord) => {
+      if (chord && pianoRef.current) {
+        pianoRef.current.triggerAttackRelease(chord, "2n", time);
       }
-      
+  
       chordIndex++;
-      
+  
       if (chordIndex >= chords.length) {
         Tone.Transport.scheduleOnce(() => {
           stopCadence();
-        }, "+2n");
+        }, `+2n`);
       }
-    },
-    chords,
-    "2n"
-  );
+    }, chords.map((chord, i) => [i * Tone.Time("2n").toSeconds(), chord])); // Schedule chords simultaneously
   
-  cadenceRef.current.start(0);
+    cadenceRef.current.start(0);
   
-  if (Tone.Transport.state !== "started") {
-    Tone.Transport.start();
-  }
-};
+    if (Tone.Transport.state !== "started") {
+      Tone.Transport.start();
+    }
+  };
+  const stopCadence = () => {
+    if (cadenceRef.current) {
+      cadenceRef.current.stop();
+      cadenceRef.current.dispose();
+      cadenceRef.current = null;
+    }
+    if (!isPlaying) {
+      Tone.Transport.stop();
+    }
+    setIsPlayingCadence(false);
+  };
 
   const generateNewSequence = (): { notes: string[], fullSequence: SequenceNote[] } => {
     const availableNotesArr = availableNotes({
