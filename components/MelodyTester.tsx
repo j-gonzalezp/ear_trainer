@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, HelpCircle, Play, Square, Repeat, RefreshCw, SkipForward } from "lucide-react";
+import { CheckCircle, XCircle, HelpCircle, Play, Square, Repeat, RefreshCw, SkipForward, Music } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import * as Tone from 'tone';
@@ -40,8 +40,8 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
   const [activeInputIndex, setActiveInputIndex] = useState(0);
   const [activeAnimations, setActiveAnimations] = useState<number[]>([]);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-  const [playCadenceBeforeMelody, setPlayCadenceBeforeMelody] = useState(config.playCadence || false);
   const [isCadencePlaying, setIsCadencePlaying] = useState(false);
+  const [hasPlayedCadence, setHasPlayedCadence] = useState(false);
   
   const melodyPlayerRef = useRef<any>(null);
   const currentMelodyRef = useRef<any>(null);
@@ -112,6 +112,7 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
       setCurrentNoteIndex(null);
       setActiveInputIndex(0);
       setActiveAnimations([]);
+      setHasPlayedCadence(false);
       inputRefs.current = Array(noteCount).fill(null);
       loopCountRef.current = 0;
       
@@ -140,14 +141,18 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
     
     if (!metronomeRef.current) {
       metronomeRef.current = createMetronome();
+      
+      if (metronomeRef.current && metronomeRef.current.volume) {
+        metronomeRef.current.volume.value = -12;
+      }
+    }
+    
+    if (pianoRef.current && pianoRef.current.volume) {
+      pianoRef.current.volume.value = 0;
     }
     
     if (config && config.loop !== undefined) {
       setLoopEnabled(config.loop);
-    }
-    
-    if (config && config.playCadence !== undefined) {
-      setPlayCadenceBeforeMelody(config.playCadence);
     }
     
     return () => {
@@ -246,14 +251,33 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
       setIsProcessingAudio(true);
       await Tone.start();
       
-      if (playCadenceBeforeMelody) {
+      if (!hasPlayedCadence) {
         setIsCadencePlaying(true);
+        setHasPlayedCadence(true);
         return;
       }
       
       await playMelodySequence();
     } catch (error) {
       console.error("Error playing melody:", error);
+    } finally {
+      setTimeout(() => {
+        setIsProcessingAudio(false);
+      }, 300);
+    }
+  };
+  
+  const handlePlayCadence = async () => {
+    if (isProcessingAudio || isPlaying || isCadencePlaying) {
+      return;
+    }
+    
+    try {
+      setIsProcessingAudio(true);
+      await Tone.start();
+      setIsCadencePlaying(true);
+    } catch (error) {
+      console.error("Error playing cadence:", error);
     } finally {
       setTimeout(() => {
         setIsProcessingAudio(false);
@@ -277,6 +301,13 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
       clearAllAnimations();
     };
     
+    const handleLoopEnd = () => {
+      const notesLength = melody.fullSequence.filter(item => item.type === "note").length;
+      if (notesLength > 0) {
+        animateNoteInput(notesLength - 1);
+      }
+    };
+    
     const playConfig = {
       generatedNotes: melody.notes,
       fullSequence: melody.fullSequence,
@@ -285,7 +316,8 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
       loop: loopEnabled,
       bpm: config.bpm || 120,
       onNotePlay: handleNotePlay,
-      onLoopStart: handleLoopStart
+      onLoopStart: handleLoopStart,
+      onLoopEnd: handleLoopEnd
     };
     
     melodyPlayerRef.current = await playSequence(playConfig);
@@ -396,7 +428,6 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
     
     setIsProcessingAudio(true);
     const currentLoop = loopEnabled;
-    const currentPlayCadence = playCadenceBeforeMelody;
     
     if (melodyPlayerRef.current) {
       try {
@@ -413,7 +444,6 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
     
     setTimeout(() => {
       setLoopEnabled(currentLoop);
-      setPlayCadenceBeforeMelody(currentPlayCadence);
       setIsProcessingAudio(false);
     }, 300);
   };
@@ -513,17 +543,6 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Switch
-                id="cadence-mode"
-                checked={playCadenceBeforeMelody}
-                onCheckedChange={value => {
-                  setPlayCadenceBeforeMelody(value);
-                }}
-                disabled={isProcessingAudio || isPlaying || isCadencePlaying}
-              />
-              <Label htmlFor="cadence-mode">Play Cadence First</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
                 id="loop-mode"
                 checked={loopEnabled}
                 onCheckedChange={value => {
@@ -547,6 +566,14 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
               >
                 {isPlaying ? <Square className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                 {isPlaying ? "Stop" : "Play Melody"}
+              </Button>
+              <Button
+                onClick={handlePlayCadence}
+                variant="outline"
+                disabled={!melody || isPlaying || isProcessingAudio || isCadencePlaying}
+              >
+                <Music className="mr-2 h-4 w-4" />
+                Play Cadence
               </Button>
               <Button 
                 onClick={handleReplayMelody} 

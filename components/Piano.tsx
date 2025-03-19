@@ -205,7 +205,7 @@ const BlackKey = ({
     <div
       className={`absolute w-12 h-full ${position} transition-all duration-200 ${
         disabled ? 'opacity-40' : 
-        isSelected ? 'bg-black border-4 border-black z-10' : 'bg-gray-500 border-4 border-gray-600 z-10'
+        isSelected ? 'bg-yellow-400 border-4 border-black z-10' : 'bg-gray-500 border-4 border-gray-600 z-10'
       }`}
       style={{
         borderRadius: '0 0 4px 4px'
@@ -217,7 +217,7 @@ const BlackKey = ({
         disabled={disabled && !onToggleKey}
       >
         <span className={`text-sm font-medium ${
-          isSelected ? 'text-white' : 'text-gray-300'
+          isSelected ? 'text-black' : 'text-gray-300'
         }`}>
           {keyData.degree}
         </span>
