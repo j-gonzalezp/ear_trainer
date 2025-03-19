@@ -1,5 +1,5 @@
 "use client"
-import React,  from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-;
+import Piano from './Piano';
 
 export interface MelodyConfigParams {
   keyId: string;
@@ -42,20 +42,19 @@ const MelodyConfig: React.FC<MelodyConfigProps> = ({
   config, 
   onChange, 
   onGenerate, 
-  hideGenerateButton = false 
+  hideGenerateButton = true 
 }) => {
   const keys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const durations = ["32n", "16n", "8n", "4n", "2n", "1n"];
-  
-  const handleNotesInput = (input: string) => {
-    const noteArray = input.split(',').map(note => note.trim());
-    onChange('notes', noteArray);
-  };
   
   const handleRangeChange = (index: 0 | 1, value: string) => {
     const newRange = [...config.range] as [string, string];
     newRange[index] = value;
     onChange('range', newRange);
+  };
+
+  const handlePianoSelection = (selectedDegrees: string[]) => {
+    onChange('notes', selectedDegrees);
   };
   
   return (
@@ -79,15 +78,12 @@ const MelodyConfig: React.FC<MelodyConfigProps> = ({
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="notes">Notes (comma-separated degrees or notes)</Label>
-          <Input 
-            id="notes" 
-            value={config.notes.join(', ')} 
-            onChange={(e) => handleNotesInput(e.target.value)}
-            placeholder="1, 2, 3, 4, 5, 6, 7"
-          />
-          <div className="text-sm text-muted-foreground">
-            Use scale degrees (1, 2, 3...) or note names (C, D, E...)
+          <Label htmlFor="notes">Select Notes</Label>
+          <div className="bg-gray-50 p-4 rounded-md">
+            <Piano 
+              activeDegrees={config.notes} 
+              onToggleKey={handlePianoSelection} 
+            />
           </div>
         </div>
         
@@ -256,16 +252,6 @@ const MelodyConfig: React.FC<MelodyConfigProps> = ({
             />
           </div>
         </div>
-        
-        {!hideGenerateButton && onGenerate && (
-          <Button 
-            className="w-full" 
-            size="lg" 
-            onClick={() => onGenerate(config)}
-          >
-            Generate Melody
-          </Button>
-        )}
       </CardContent>
     </Card>
   );

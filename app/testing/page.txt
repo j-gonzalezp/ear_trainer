@@ -1,0 +1,231 @@
+"use client"
+import React, { useState, useEffect } from 'react';
+import MelodyConfig, { MelodyConfigParams } from '../../components/MelodyConfig';
+import MelodyTester from '../../components/MelodyTester';
+import { ChevronUp, ChevronDown, Settings } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const defaultConfig: MelodyConfigParams = {
+  keyId: "C",
+  notes: ["1", "2", "3", "4", "5", "6", "7"],
+  range: ["C3", "C5"],
+  numberOfNotes: 5,
+  maxInterval: 5,
+  minInterval: 1,
+  totalBeats: 4,
+  shortestDuration: "8n",
+  longestDuration: "4n",
+  allowRests: false,
+  restProbability: 0.2,
+  loop: false,
+  bpm: 90
+};
+
+const scaleDegreesToNotes = (degrees, key) => {
+  const allNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const majorScaleSteps = [0, 2, 4, 5, 7, 9, 11];
+  const keyIndex = allNotes.indexOf(key);
+  
+  const parseDegree = (degree) => {
+    const match = degree.match(/^(\d+)([#b]?)$/);
+    if (!match) return null;
+    
+    const num = parseInt(match[1], 10);
+    const accidental = match[2];
+    
+    if (num < 1 || num > 7) return null;
+    
+    let noteIndex = majorScaleSteps[(num - 1) % 7];
+    
+    if (accidental === '#') noteIndex += 1;
+    if (accidental === 'b') noteIndex -= 1;
+    
+    return (keyIndex + noteIndex) % 12;
+  };
+  
+  const getRandomOctave = () => Math.floor(Math.random() * 3) + 3;
+  
+  return degrees.map(degree => {
+    if (allNotes.includes(degree.replace(/\d+$/, ''))) {
+      return degree;
+    }
+    
+    const noteIndex = parseDegree(degree);
+    if (noteIndex === null) return null;
+    
+    const octave = getRandomOctave();
+    return `${allNotes[noteIndex]}${octave}`;
+  }).filter(note => note !== null);
+};
+
+const generateMelodySequence = (config) => {
+  const { notes, numberOfNotes, totalBeats, shortestDuration, longestDuration, allowRests, restProbability } = config;
+  
+  const durationMap = {
+    "32n": 0.125,
+    "16n": 0.25,
+    "8n": 0.5,
+    "4n": 1,
+    "2n": 2,
+    "1n": 4
+  };
+  
+  const shortestBeat = durationMap[shortestDuration];
+  const longestBeat = durationMap[longestDuration];
+  
+  const actualNotes = scaleDegreesToNotes(notes, config.keyId);
+  const sequence = [];
+  let remainingBeats = totalBeats;
+  
+  for (let i = 0; i < numberOfNotes && remainingBeats > 0; i++) {
+    const isRest = allowRests && Math.random() < restProbability;
+    
+    const maxPossibleDuration = Math.min(longestBeat, remainingBeats);
+    const minPossibleDuration = Math.min(shortestBeat, remainingBeats);
+    
+    const possibleDurations = Object.entries(durationMap)
+      .filter(([_, value]) => value >= minPossibleDuration && value <= maxPossibleDuration)
+      .map(([key, _]) => key);
+    
+    const duration = possibleDurations[Math.floor(Math.random() * possibleDurations.length)];
+    const durationValue = durationMap[duration];
+    
+    if (isRest) {
+      sequence.push({
+        type: "rest",
+        value: durationValue
+      });
+    } else {
+      const randomNote = actualNotes[Math.floor(Math.random() * actualNotes.length)];
+      sequence.push({
+        type: "note",
+        note: randomNote,
+        value: durationValue
+      });
+    }
+    
+    remainingBeats -= durationValue;
+  }
+  
+  const melodyNotes = sequence
+    .filter(item => item.type === "note")
+    .map(item => item.note);
+  
+  return {
+    notes: melodyNotes,
+    fullSequence: sequence
+  };
+};
+
+const ColoredInputWrapper = React.forwardRef(({ value, onChange, isCorrect, isSubmitted, isCurrentlyPlaying, disabled, actualAnswer, showAnswer }, ref) => {
+  let borderColorClass = "";
+  let bgColorClass = "";
+  
+  if (isSubmitted) {
+    if (isCorrect) {
+      borderColorClass = "border-green-500";
+      bgColorClass = "bg-green-50";
+    } else {
+      borderColorClass = "border-red-500";
+      bgColorClass = "bg-red-50";
+    }
+  }
+  
+  const playingClass = isCurrentlyPlaying ? "ring-2 ring-primary shadow-md transform scale-110" : "";
+  
+  return (
+    <div className="relative">
+      <input
+        ref={ref}
+        className={`w-16 h-10 text-center rounded-md border transition-all duration-200 ${borderColorClass} ${bgColorClass} ${playingClass} hover:ring-2 hover:ring-primary/50`}
+        value={value || ""}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        maxLength={3}
+      />
+      {isSubmitted && !isCorrect && showAnswer && (
+        <div className="absolute -bottom-5 left-0 text-xs text-center w-full text-green-500 font-medium">
+          {actualAnswer}
+        </div>
+      )}
+    </div>
+  );
+});
+
+ColoredInputWrapper.displayName = "ColoredInputWrapper";
+
+const MelodyTrainingPage = () => {
+  const [config, setConfig] = useState<MelodyConfigParams>(defaultConfig);
+  const [melody, setMelody] = useState(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const [melodyKey, setMelodyKey] = useState(0);
+  
+  const handleConfigChange = (field: keyof MelodyConfigParams, value: any) => {
+    setConfig(prevConfig => ({
+      ...prevConfig,
+      [field]: value
+    }));
+  };
+  
+  const handleGenerateMelody = () => {
+    console.log("Generating new melody with config:", config);
+    const newMelody = generateMelodySequence(config);
+    console.log("New melody generated:", newMelody);
+    setMelody(newMelody);
+    setMelodyKey(prevKey => prevKey + 1);
+  };
+  
+  useEffect(() => {
+    console.log("Initial melody generation");
+    handleGenerateMelody();
+  }, []);
+  
+  return (
+    <div className="container mx-auto py-8 px-4 max-w-4xl">
+      <h1 className="text-3xl font-bold mb-6 text-center">Ear Training App</h1>
+      
+      <div className="mb-6">
+        <MelodyTester 
+          key={melodyKey}
+          melody={melody}
+          onGenerateNew={handleGenerateMelody}
+          keySignature={config.keyId}
+          config={{
+            bpm: config.bpm,
+            loop: config.loop
+          }}
+          InputComponent={ColoredInputWrapper}
+        />
+      </div>
+      
+      <div className="space-y-4">
+        <Button 
+          variant="outline" 
+          className="w-full flex items-center justify-center gap-2"
+          onClick={() => setShowConfig(!showConfig)}
+        >
+          <Settings className="h-4 w-4" />
+          <span>Settings</span>
+          {showConfig ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+        
+        {showConfig && (
+          <div className="border rounded-lg p-4 bg-slate-50">
+            <MelodyConfig 
+              config={config}
+              onChange={handleConfigChange}
+              hideGenerateButton={true}
+            />
+            <div className="mt-4 flex justify-center">
+              <Button onClick={handleGenerateMelody}>
+                Apply Settings & Generate New Melody
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default MelodyTrainingPage;

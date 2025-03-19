@@ -359,78 +359,8 @@ export const generateNoteSequence = ({
   }
 };
 
-export const playSequence = async ({
-  keyId = "",
-  notes = [],
-  range = ["C3", "C5"],
-  numberOfNotes = 8,
-  maxInterval = 12,
-  minInterval = 1,
-  totalBeats = 4,
-  shortestDuration = "16n",
-  longestDuration = "2n",
-  allowRests = true,
-  restProbability = 0.2,
-  loop = false,
-  bpm = 120
-} = {}) => {
-  if (Tone.context.state !== "running") {
-    await Tone.start();
-  }
-
-  totalBeats = Math.floor(totalBeats);
-  if (totalBeats < 1) totalBeats = 4;
-
-  Tone.Transport.bpm.value = bpm;
-
-  const generatedNotes = generateNoteSequence({
-    keyId,
-    notes,
-    range,
-    numberOfNotes,
-    maxInterval,
-    minInterval
-  });
-
-  if (!generatedNotes || generatedNotes.length === 0) {
-    return { play: () => { }, stop: () => { }, isPlaying: false };
-  }
-
-  const rhythmPattern = rhythmGenerator({
-    totalBeats,
-    shortestDuration,
-    longestDuration,
-    n: generatedNotes.length,
-    allowRests,
-    restProbability
-  });
-
-  const fullSequence = [];
-  let noteIndex = 0;
-  let currentBeatPosition = 0;
-
-  for (const rhythmItem of rhythmPattern) {
-    if (rhythmItem.type === "note" && noteIndex < generatedNotes.length) {
-      fullSequence.push({
-        type: "note",
-        note: generatedNotes[noteIndex],
-        duration: rhythmItem.duration,
-        value: rhythmItem.value,
-        startTime: currentBeatPosition
-      });
-      noteIndex++;
-    } else if (rhythmItem.type === "rest") {
-      fullSequence.push({
-        type: "rest",
-        duration: rhythmItem.duration,
-        value: rhythmItem.value,
-        startTime: currentBeatPosition
-      });
-    }
-    currentBeatPosition += rhythmItem.value;
-  }
-
-  const piano = new Tone.Sampler({
+export const createPiano = () => {
+  return new Tone.Sampler({
     urls: {
       A0: 'A0.mp3',
       C1: 'C1.mp3',
@@ -464,10 +394,10 @@ export const playSequence = async ({
       C8: 'C8.mp3',
     },
     baseUrl: 'https://tonejs.github.io/audio/salamander/',
-    onload: () => {},
-    onerror: (err) => {}
   }).toDestination();
+};
 
+export const createMetronome = () => {
   const metronomeCh = new Tone.Channel({
     volume: 10,
     pan: 1
@@ -503,31 +433,79 @@ export const playSequence = async ({
     }
   }).connect(metronomeCh);
 
+  return { metronome, metronomeAccent };
+};
+
+export const createFullSequence = (generatedNotes, rhythmPattern) => {
+  const fullSequence = [];
+  let noteIndex = 0;
+  let currentBeatPosition = 0;
+
+  for (const rhythmItem of rhythmPattern) {
+    if (rhythmItem.type === "note" && noteIndex < generatedNotes.length) {
+      fullSequence.push({
+        type: "note",
+        note: generatedNotes[noteIndex],
+        duration: rhythmItem.duration,
+        value: rhythmItem.value,
+        startTime: currentBeatPosition
+      });
+      noteIndex++;
+    } else if (rhythmItem.type === "rest") {
+      fullSequence.push({
+        type: "rest",
+        duration: rhythmItem.duration,
+        value: rhythmItem.value,
+        startTime: currentBeatPosition
+      });
+    }
+    currentBeatPosition += rhythmItem.value;
+  }
+
+  return fullSequence;
+};
+
+export const createMetronomeEvents = (totalBeats) => {
+  const events = [];
+  for (let i = 0; i < totalBeats; i++) {
+    events.push({
+      time: i,
+      note: i === 0 ? "C1" : "C3",
+      velocity: i === 0 ? 1.5 : 0.8,
+      isAccent: i === 0
+    });
+  }
+  return events;
+};
+
+export const playSequence = async ({
+  generatedNotes = [],
+  fullSequence = [],
+  piano,
+  metronomeInstruments,
+  loop = false,
+  bpm = 120,
+  onNotePlay = null
+} = {}) => {
+  if (Tone.context.state !== "running") {
+    await Tone.start();
+  }
+
+  Tone.Transport.bpm.value = bpm;
+
+  if (!generatedNotes || generatedNotes.length === 0 || !fullSequence || fullSequence.length === 0) {
+    return { play: () => { }, stop: () => { }, isPlaying: false };
+  }
+
+  const totalBeats = fullSequence.reduce((total, item) => total + (item.value || 0), 0);
+
   let isPlaying = false;
-  let currentSequence = null;
   let metronomeSeq = null;
   let notesSequence = null;
   let loopCount = 0;
 
-  const createMetronomeEvents = () => {
-    const events = [];
-    for (let i = 0; i < totalBeats; i++) {
-      events.push({
-        time: i,
-        note: i === 0 ? "C1" : "C3",
-        velocity: i === 0 ? 1.5 : 0.8,
-        isAccent: i === 0
-      });
-    }
-    return events;
-  };
-
   const play = () => {
     if (isPlaying) return;
-
-    if (currentSequence) {
-      currentSequence.dispose();
-    }
 
     if (metronomeSeq) {
       metronomeSeq.dispose();
@@ -540,12 +518,12 @@ export const playSequence = async ({
     loopCount = 0;
     isPlaying = true;
 
-    const metronomeEvents = createMetronomeEvents();
+    const metronomeEvents = createMetronomeEvents(Math.ceil(totalBeats));
     metronomeSeq = new Tone.Part((time, event) => {
       if (event.isAccent) {
-        metronomeAccent.triggerAttackRelease(event.note, "32n", time, event.velocity);
+        metronomeInstruments.metronomeAccent.triggerAttackRelease(event.note, "32n", time, event.velocity);
       } else {
-        metronome.triggerAttackRelease(event.note, "32n", time, event.velocity);
+        metronomeInstruments.metronome.triggerAttackRelease(event.note, "32n", time, event.velocity);
       }
     }, metronomeEvents).start(0);
     
@@ -564,6 +542,11 @@ export const playSequence = async ({
       
       if (item.type === "note") {
         piano.triggerAttackRelease(item.note, item.duration, time);
+        if (onNotePlay) {
+          const noteIndex = fullSequence.filter(item => item.type === "note")
+            .findIndex(noteItem => noteItem === item);
+          onNotePlay(time, item.note, noteIndex);
+        }
       }
     }, noteEvents).start(0);
     
@@ -603,14 +586,18 @@ export const playSequence = async ({
     Tone.Transport.cancel(0);
     Tone.Transport.stop();
     isPlaying = false;
+    
+    if (this.onStop) {
+      this.onStop();
+    }
   };
 
   return {
     notes: generatedNotes,
-    durations: rhythmPattern.map(item => item.duration),
-    fullSequence,
+    fullSequence: fullSequence,
     play,
     stop,
+    onStop: null,
     get isPlaying() { return isPlaying; }
   };
 };

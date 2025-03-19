@@ -3,11 +3,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, HelpCircle, Brain, Play, Square, Repeat, RefreshCw } from "lucide-react";
+import { CheckCircle, XCircle, HelpCircle, Play, Square, Repeat, RefreshCw, SkipForward } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import * as Tone from 'tone';
-import { playSequence } from '@/lib/melodyGenerators';
+import { playSequence, createPiano, createMetronome } from '@/lib/melodyGenerators';
+import Piano from './Piano';
 
 interface MelodyTesterProps {
   melody: {
@@ -17,13 +18,15 @@ interface MelodyTesterProps {
   onGenerateNew: () => void;
   keySignature?: string;
   config?: any;
+  InputComponent?: React.ComponentType<any>;
 }
 
 const MelodyTester: React.FC<MelodyTesterProps> = ({ 
   melody, 
   onGenerateNew, 
   keySignature = "C",
-  config = {} 
+  config = {},
+  InputComponent = null
 }) => {
   const [userAnswers, setUserAnswers] = useState<string[]>([]);
   const [results, setResults] = useState<boolean[]>([]);
@@ -32,123 +35,18 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
   const [submitted, setSubmitted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentNoteIndex, setCurrentNoteIndex] = useState<number | null>(null);
-  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(config.loop || false);
+  const [activeInputIndex, setActiveInputIndex] = useState(0);
+  const [activeAnimations, setActiveAnimations] = useState<number[]>([]);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   
   const melodyPlayerRef = useRef<any>(null);
   const currentMelodyRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (melody) {
-      currentMelodyRef.current = melody;
-      const noteCount = melody.fullSequence.filter(item => item.type === "note").length;
-      setUserAnswers(Array(noteCount).fill(""));
-      setResults(Array(noteCount).fill(false));
-      setShowAnswers(false);
-      setScore(0);
-      setSubmitted(false);
-      setCurrentNoteIndex(null);
-    }
-    
-    return () => {
-      if (melodyPlayerRef.current) {
-        melodyPlayerRef.current.stop();
-      }
-    };
-  }, [melody]);
-
-  const generateMelody = async () => {
-    if (isPlaying && melodyPlayerRef.current) {
-      melodyPlayerRef.current.stop();
-      setIsPlaying(false);
-      setCurrentNoteIndex(null);
-    }
-    
-    try {
-      // Call the parent component's onGenerateNew function to generate a new melody
-      onGenerateNew();
-      
-      // Reset the user interface
-      setUserAnswers([]);
-      setResults([]);
-      setShowAnswers(false);
-      setScore(0);
-      setSubmitted(false);
-    } catch (error) {
-      console.error("Error generating melody:", error);
-    }
-  };
-
-  const handlePlayMelody = async () => {
-    if (!melody) return;
-    
-    if (isPlaying && melodyPlayerRef.current) {
-      melodyPlayerRef.current.stop();
-      setIsPlaying(false);
-      setCurrentNoteIndex(null);
-      return;
-    }
-    
-    try {
-      // Merge current melody's notes with config
-      const playConfig = {
-        ...config,
-        notes: melody.notes,
-        loop: loopEnabled
-      };
-      
-      melodyPlayerRef.current = await playSequence(playConfig);
-      
-      // Set up note tracking for visualization
-      let noteIndex = 0;
-      melodyPlayerRef.current.onNotePlay = (time, note) => {
-        Tone.Transport.scheduleOnce(() => {
-          setCurrentNoteIndex(noteIndex);
-          noteIndex = (noteIndex + 1) % melody.notes.length;
-        }, time);
-      };
-      
-      melodyPlayerRef.current.onStop = () => {
-        setIsPlaying(false);
-        setCurrentNoteIndex(null);
-      };
-      
-      melodyPlayerRef.current.play();
-      setIsPlaying(true);
-      
-      // If not looping, set a timeout to update the isPlaying state
-      if (!loopEnabled) {
-        const totalDuration = melody.fullSequence.reduce(
-          (total, item) => total + (item.value || 0), 
-          0
-        ) * (60 / (config.bpm || 120)) * 1000;
-        
-        setTimeout(() => {
-          setIsPlaying(false);
-          setCurrentNoteIndex(null);
-        }, totalDuration + 500);
-      }
-    } catch (error) {
-      console.error("Error playing melody:", error);
-    }
-  };
-
-  const handleReplayMelody = async () => {
-    if (melodyPlayerRef.current) {
-      melodyPlayerRef.current.stop();
-    }
-    
-    setIsPlaying(false);
-    setCurrentNoteIndex(null);
-    setTimeout(() => {
-      handlePlayMelody();
-    }, 100);
-  };
-
-  const handleInputChange = (index: number, value: string) => {
-    const newAnswers = [...userAnswers];
-    newAnswers[index] = value;
-    setUserAnswers(newAnswers);
-  };
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const pianoRef = useRef<any>(null);
+  const metronomeRef = useRef<any>(null);
+  const animationTimersRef = useRef<any[]>([]);
+  const loopCountRef = useRef<number>(0);
 
   const buildKeyMap = (key: string) => {
     const allNoteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -194,6 +92,255 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
     return keyMap;
   };
 
+  const getDegreeNotes = () => {
+    return config.notes || ["1", "2", "3", "4", "5", "6", "7"];
+  };
+
+  useEffect(() => {
+    if (melody) {
+      console.log("New melody loaded:", melody);
+      currentMelodyRef.current = melody;
+      const noteCount = melody.fullSequence.filter(item => item.type === "note").length;
+      setUserAnswers(Array(noteCount).fill(""));
+      setResults(Array(noteCount).fill(false));
+      setShowAnswers(false);
+      setScore(0);
+      setSubmitted(false);
+      setCurrentNoteIndex(null);
+      setActiveInputIndex(0);
+      setActiveAnimations([]);
+      inputRefs.current = Array(noteCount).fill(null);
+      loopCountRef.current = 0;
+      
+      animationTimersRef.current.forEach(timer => clearTimeout(timer.id));
+      animationTimersRef.current = [];
+    }
+    
+    return () => {
+      if (melodyPlayerRef.current) {
+        try {
+          melodyPlayerRef.current.stop();
+        } catch (e) {
+          console.error("Error stopping player:", e);
+        }
+        melodyPlayerRef.current = null;
+      }
+      
+      animationTimersRef.current.forEach(timer => clearTimeout(timer.id));
+    };
+  }, [melody]);
+
+  useEffect(() => {
+    if (!pianoRef.current) {
+      pianoRef.current = createPiano();
+    }
+    
+    if (!metronomeRef.current) {
+      metronomeRef.current = createMetronome();
+    }
+    
+    if (config && config.loop !== undefined) {
+      setLoopEnabled(config.loop);
+    }
+    
+    return () => {
+      if (melodyPlayerRef.current) {
+        try {
+          melodyPlayerRef.current.stop();
+        } catch (e) {
+          console.error("Error stopping player:", e);
+        }
+        melodyPlayerRef.current = null;
+      }
+      
+      animationTimersRef.current.forEach(timer => clearTimeout(timer.id));
+    };
+  }, [config]);
+
+  useEffect(() => {
+    if (isPlaying && melodyPlayerRef.current && !isProcessingAudio) {
+      console.log("Loop setting changed while playing. Restarting playback");
+      setIsProcessingAudio(true);
+      
+      try {
+        const currentPlayer = melodyPlayerRef.current;
+        currentPlayer.stop();
+        melodyPlayerRef.current = null;
+      } catch (e) {
+        console.error("Error stopping player:", e);
+      }
+      
+      setTimeout(() => {
+        if (melody) {
+          handlePlayMelody();
+        }
+        setIsProcessingAudio(false);
+      }, 300);
+    }
+  }, [loopEnabled]);
+
+  const clearAllAnimations = () => {
+    setActiveAnimations([]);
+    animationTimersRef.current.forEach(timer => {
+      clearTimeout(timer.id);
+    });
+    animationTimersRef.current = [];
+  };
+
+  const animateNoteInput = (index) => {
+    if (index === null || index === undefined) return;
+    
+    setActiveAnimations(prev => {
+      if (!prev.includes(index)) {
+        return [...prev, index];
+      }
+      return prev;
+    });
+    
+    animationTimersRef.current = animationTimersRef.current.filter(timer => {
+      if (timer.index === index) {
+        clearTimeout(timer.id);
+        return false;
+      }
+      return true;
+    });
+    
+    const timerId = setTimeout(() => {
+      setActiveAnimations(prev => prev.filter(i => i !== index));
+    }, 1000);
+    
+    animationTimersRef.current.push({ id: timerId, index });
+  };
+
+  const handlePlayMelody = async () => {
+    if (!melody || isProcessingAudio) {
+      return;
+    }
+    
+    if (isPlaying && melodyPlayerRef.current) {
+      setIsProcessingAudio(true);
+      try {
+        melodyPlayerRef.current.stop();
+        melodyPlayerRef.current = null;
+      } catch (e) {
+        console.error("Error stopping player:", e);
+      }
+      setIsPlaying(false);
+      setCurrentNoteIndex(null);
+      clearAllAnimations();
+      
+      setTimeout(() => {
+        setIsProcessingAudio(false);
+      }, 300);
+      return;
+    }
+    
+    try {
+      setIsProcessingAudio(true);
+      await Tone.start();
+      loopCountRef.current = 0;
+      
+      const handleNotePlay = (time, note, index) => {
+        const scheduledTime = Math.max(0, (time - Tone.now()) * 1000);
+        setTimeout(() => {
+          setCurrentNoteIndex(index);
+          animateNoteInput(index);
+        }, scheduledTime);
+      };
+      
+      const handleLoopStart = () => {
+        loopCountRef.current += 1;
+        clearAllAnimations();
+      };
+      
+      const playConfig = {
+        generatedNotes: melody.notes,
+        fullSequence: melody.fullSequence,
+        piano: pianoRef.current,
+        metronomeInstruments: metronomeRef.current,
+        loop: loopEnabled,
+        bpm: config.bpm || 120,
+        onNotePlay: handleNotePlay,
+        onLoopStart: handleLoopStart
+      };
+      
+      melodyPlayerRef.current = await playSequence(playConfig);
+      
+      melodyPlayerRef.current.onStop = () => {
+        setIsPlaying(false);
+        setCurrentNoteIndex(null);
+        clearAllAnimations();
+      };
+      
+      melodyPlayerRef.current.play();
+      setIsPlaying(true);
+      
+      if (!loopEnabled) {
+        Tone.Transport.bpm.value = config.bpm || 120;
+        
+        const totalDuration = melody.fullSequence.reduce(
+          (total, item) => total + (item.value || 0), 
+          0
+        ) * (60 / Tone.Transport.bpm.value) * 1000;
+        
+        setTimeout(() => {
+          setIsPlaying(false);
+          setCurrentNoteIndex(null);
+          clearAllAnimations();
+        }, totalDuration + 1000);
+      }
+    } catch (error) {
+      console.error("Error playing melody:", error);
+    } finally {
+      setTimeout(() => {
+        setIsProcessingAudio(false);
+      }, 300);
+    }
+  };
+
+  const handleReplayMelody = async () => {
+    if (isProcessingAudio) return;
+    
+    setIsProcessingAudio(true);
+    
+    if (melodyPlayerRef.current) {
+      try {
+        melodyPlayerRef.current.stop();
+        melodyPlayerRef.current = null;
+      } catch (e) {
+        console.error("Error stopping player:", e);
+      }
+    }
+    
+    setIsPlaying(false);
+    setCurrentNoteIndex(null);
+    clearAllAnimations();
+    
+    setTimeout(() => {
+      handlePlayMelody();
+      setIsProcessingAudio(false);
+    }, 300);
+  };
+
+  const handleInputChange = (index: number, value: string) => {
+    const newAnswers = [...userAnswers];
+    newAnswers[index] = value;
+    setUserAnswers(newAnswers);
+    
+    if (value && index < userAnswers.length - 1) {
+      setActiveInputIndex(index + 1);
+      setTimeout(() => {
+        inputRefs.current[index + 1]?.focus();
+      }, 10);
+    }
+  };
+
+  const handlePianoKeyPress = (degree: string) => {
+    if (activeInputIndex < userAnswers.length && !submitted) {
+      handleInputChange(activeInputIndex, degree);
+    }
+  };
+
   const validateAnswers = () => {
     if (!melody) return;
     
@@ -201,242 +348,254 @@ const MelodyTester: React.FC<MelodyTesterProps> = ({
     
     const actualNotes = melody.fullSequence
       .filter(item => item.type === "note")
-      .map(item => {
-        const noteWithoutOctave = item.note.replace(/\d+$/, '');
-        return keyMap[noteWithoutOctave] || noteWithoutOctave;
-      });
+      .map(item => item.note);
     
-    const newResults = userAnswers.map((answer, index) => {
-      return answer.trim() === actualNotes[index];
+    const correctAnswers = actualNotes.map(note => {
+      const noteName = note.replace(/\d+$/, '');
+      return keyMap[noteName] || noteName;
     });
-
-    const newScore = newResults.filter(result => result).length;
+    
+    const newResults = correctAnswers.map((correctAnswer, index) => {
+      const userAnswer = userAnswers[index].trim();
+      return userAnswer.toLowerCase() === correctAnswer.toLowerCase();
+    });
+    
     setResults(newResults);
-    setScore(newScore);
+    setScore(newResults.filter(Boolean).length);
     setSubmitted(true);
   };
 
-  const resetTest = () => {
-    if (isPlaying && melodyPlayerRef.current) {
-      melodyPlayerRef.current.stop();
-      setIsPlaying(false);
-      setCurrentNoteIndex(null);
+  const handleShowAnswers = () => {
+    setShowAnswers(true);
+  };
+
+  const handleNextMelody = () => {
+    if (isProcessingAudio) return;
+    
+    setIsProcessingAudio(true);
+    const currentLoop = loopEnabled;
+    
+    if (melodyPlayerRef.current) {
+      try {
+        melodyPlayerRef.current.stop();
+        melodyPlayerRef.current = null;
+      } catch (e) {
+        console.error("Error stopping player:", e);
+      }
     }
     
+    clearAllAnimations();
+    setIsPlaying(false);
     onGenerateNew();
+    
+    setTimeout(() => {
+      setLoopEnabled(currentLoop);
+      setIsProcessingAudio(false);
+    }, 300);
   };
 
-  const toggleShowAnswers = () => {
-    setShowAnswers(!showAnswers);
-  };
-
-  const handleLoopChange = (checked: boolean) => {
-    setLoopEnabled(checked);
-    if (isPlaying && melodyPlayerRef.current) {
-      melodyPlayerRef.current.stop();
-      setIsPlaying(false);
-      setTimeout(() => {
-        handlePlayMelody();
-      }, 100);
+  const renderInputField = (index: number) => {
+    const isCorrect = results[index];
+    const isActive = currentNoteIndex === index;
+    const isAnimating = activeAnimations.includes(index);
+    
+    const animationStyle = isAnimating ? {
+      borderColor: '#FBBF24',
+      borderWidth: '2px',
+      boxShadow: '0 0 0 2px rgba(251, 191, 36, 0.5)',
+      transform: 'scale(1.1)',
+      zIndex: 10,
+      transition: 'all 0.2s ease-in-out'
+    } : {};
+    
+    const inputClasses = `
+      w-14 h-12 text-center text-lg font-medium transition-all duration-200
+      ${isActive ? "border-2 border-yellow-400" : ""}
+      ${submitted && !showAnswers ? (isCorrect ? "bg-green-100 border-green-500" : "bg-red-100 border-red-500") : ""}
+      focus:outline-none focus:ring-0 focus:border-inherit
+    `;
+    
+    if (InputComponent) {
+      const keyMap = buildKeyMap(keySignature);
+      const correctNote = melody?.fullSequence.filter(item => item.type === "note")[index].note.replace(/\d+$/, '');
+      const correctAnswer = keyMap[correctNote] || correctNote;
+      
+      return (
+        <InputComponent
+          ref={el => {
+            inputRefs.current[index] = el;
+            if (index === 0 && el && !userAnswers[0]) {
+              setTimeout(() => el.focus(), 100);
+            }
+          }}
+          value={userAnswers[index]}
+          onChange={value => handleInputChange(index, value)}
+          isCorrect={isCorrect}
+          isSubmitted={submitted}
+          isCurrentlyPlaying={isActive}
+          isAnimating={isAnimating}
+          disabled={showAnswers || submitted}
+          actualAnswer={correctAnswer}
+          showAnswer={showAnswers}
+          onFocus={() => setActiveInputIndex(index)}
+          style={animationStyle}
+        />
+      );
     }
-  };
-
-  if (!melody) {
-    return (
-      <Card className="w-full max-w-3xl">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Brain className="mr-2" /> Melody Tester
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-40 text-muted-foreground">
-            No melody available. Please generate a melody first.
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const keyMap = buildKeyMap(keySignature);
-  const noteCount = melody.fullSequence.filter(item => item.type === "note").length;
-
-  const renderNoteDisplay = () => {
-    const noteItems = melody.fullSequence
-      .filter(item => item.type === "note")
-      .map((item, index) => {
-        const isCurrentPlaying = currentNoteIndex === index;
-        const noteWithoutOctave = item.note.replace(/\d+$/, '');
-        const octave = item.note.match(/\d+$/)?.[0] || '';
-        
-        return (
-          <div 
-            key={`note-${index}`} 
-            className={`transition-all duration-150 h-10 w-10 flex items-center justify-center rounded-md
-              ${isCurrentPlaying ? 'bg-primary text-white scale-110 shadow-md' : 'bg-primary/10'}`}
-          >
-            <div className="text-center">
-              <span className="font-bold">{noteWithoutOctave}</span>
-              <span className="text-xs">{octave}</span>
-            </div>
-          </div>
-        );
-      });
+    
+    if (showAnswers) {
+      const keyMap = buildKeyMap(keySignature);
+      const correctNote = melody?.fullSequence.filter(item => item.type === "note")[index].note.replace(/\d+$/, '');
+      const correctAnswer = keyMap[correctNote] || correctNote;
+      
+      return (
+        <Input
+          ref={el => inputRefs.current[index] = el}
+          value={correctAnswer}
+          className={inputClasses}
+          maxLength={2}
+          readOnly
+          style={animationStyle}
+        />
+      );
+    }
     
     return (
-      <div className="flex justify-center gap-2 mb-4 overflow-x-auto py-2">
-        {noteItems}
-      </div>
+      <Input
+        ref={el => {
+          inputRefs.current[index] = el;
+          if (index === 0 && el && !userAnswers[0]) {
+            setTimeout(() => el.focus(), 100);
+          }
+        }}
+        value={userAnswers[index]}
+        onChange={e => handleInputChange(index, e.target.value)}
+        className={inputClasses}
+        maxLength={2}
+        onFocus={() => setActiveInputIndex(index)}
+        readOnly={submitted}
+        style={animationStyle}
+        data-active={isActive}
+        data-animating={isAnimating}
+      />
     );
   };
 
   return (
-    <Card className="w-full max-w-3xl">
+    <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <Brain className="mr-2" /> Melody Tester
+        <CardTitle className="flex items-center justify-between">
+          <div>Melody Tester - {keySignature} Major</div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="loop-mode"
+              checked={loopEnabled}
+              onCheckedChange={value => {
+                setLoopEnabled(value);
+              }}
+              disabled={isProcessingAudio}
+            />
+            <Label htmlFor="loop-mode">Loop</Label>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          <div className="bg-primary/5 p-4 rounded-md">
-            <h3 className="font-medium mb-2">Instructions:</h3>
-            <p className="text-sm text-muted-foreground">
-              Listen to the melody and enter the scale degrees in {keySignature} major. 
-              Use numbers 1-7 with # for sharps when needed (e.g. 1, 4, 5#).
-            </p>
-            <div className="flex items-center gap-2 mt-2">
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-between items-center">
+            <div className="flex gap-2">
               <Button 
                 onClick={handlePlayMelody} 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center gap-1"
+                variant={isPlaying ? "destructive" : "default"}
+                disabled={!melody || isProcessingAudio}
               >
-                {isPlaying ? (
-                  <>
-                    <Square className="h-4 w-4" /> Stop
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" /> Play
-                  </>
-                )}
+                {isPlaying ? <Square className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                {isPlaying ? "Stop" : "Play Melody"}
               </Button>
-              
               <Button 
                 onClick={handleReplayMelody} 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center gap-1"
-                disabled={isPlaying}
+                variant="outline"
+                disabled={!melody || isPlaying || isProcessingAudio}
               >
-                <Repeat className="h-4 w-4" /> Replay
+                <Repeat className="mr-2 h-4 w-4" />
+                Replay
               </Button>
-              
-              <div className="flex items-center gap-2 ml-auto">
-                <Switch
-                  id="loop-mode"
-                  checked={loopEnabled}
-                  onCheckedChange={handleLoopChange}
-                />
-                <Label htmlFor="loop-mode">Loop</Label>
-              </div>
+              {!submitted && (
+                <Button 
+                  onClick={handleNextMelody} 
+                  variant="outline"
+                  disabled={isPlaying || isProcessingAudio}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  New Melody
+                </Button>
+              )}
             </div>
+            {submitted && (
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold">Score: {score}/{results.length}</span>
+                {!showAnswers && (
+                  <Button 
+                    onClick={handleShowAnswers} 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isProcessingAudio}
+                  >
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Show Answers
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
-
-          {renderNoteDisplay()}
-
-          <div className="flex flex-wrap gap-2">
-            {melody.fullSequence
-              .filter(item => item.type === "note")
-              .map((item, index) => {
-                const isCorrect = results[index];
-                const hasAnswered = submitted && userAnswers[index] !== "";
-                const noteWithoutOctave = item.note.replace(/\d+$/, '');
-                const actualAnswer = keyMap[noteWithoutOctave] || noteWithoutOctave;
-                const isCurrentlyPlaying = currentNoteIndex === index;
-                
-                return (
-                  <div key={`input-${index}`} className="flex items-center">
-                    <Input
-                      className={`w-16 transition-all duration-200 ${
-                        isCurrentlyPlaying 
-                          ? "ring-2 ring-primary shadow-md transform scale-110" 
-                          : ""
-                      }`}
-                      placeholder="1, 5#..."
-                      value={userAnswers[index] || ""}
-                      onChange={(e) => handleInputChange(index, e.target.value)}
-                      disabled={submitted}
-                      maxLength={3}
-                    />
-                    {submitted && (
-                      <div className="flex items-center ml-1">
-                        {hasAnswered ? (
-                          isCorrect ? (
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                          ) : (
-                            <XCircle className="h-4 w-4 text-red-500" />
-                          )
+          
+          {melody && (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-4 gap-4 sm:grid-cols-5 md:grid-cols-8">
+                {Array.from({ length: userAnswers.length }).map((_, index) => (
+                  <div key={index} className="flex flex-col items-center">
+                    <div className="text-sm text-center mb-1">Note {index + 1}</div>
+                    {renderInputField(index)}
+                    {submitted && !showAnswers && (
+                      <div className="mt-1">
+                        {results[index] ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
                         ) : (
-                          <HelpCircle className="h-4 w-4 text-amber-500" />
-                        )}
-                        {(showAnswers || isCorrect) && !isCorrect && (
-                          <span className="ml-1 text-xs">
-                            {actualAnswer}
-                          </span>
+                          <XCircle className="h-5 w-5 text-red-500" />
                         )}
                       </div>
                     )}
                   </div>
-                );
-              })}
-          </div>
-
-          <div className="flex flex-col sm:flex-row justify-between gap-4">
-            <div className="flex gap-2">
-              {submitted && (
-                <Button
-                  variant="outline"
-                  onClick={toggleShowAnswers}
-                  className="flex-grow"
-                >
-                  {showAnswers ? "Hide Answers" : "Show Answers"}
-                </Button>
-              )}
-              <Button 
-                variant="outline" 
-                onClick={resetTest}
-                className="flex-grow"
-              >
-                <RefreshCw className="h-4 w-4 mr-1" /> New Melody
-              </Button>
-              <Button 
-                onClick={generateMelody} 
-                variant="outline" 
-                className="flex-grow"
-              >
-                Generate New
-              </Button>
-            </div>
-            
-            {!submitted ? (
-              <Button 
-                onClick={validateAnswers}
-                className="flex-grow"
-                disabled={userAnswers.every(answer => answer === "")}
-              >
-                Check Answers
-              </Button>
-            ) : (
-              <div className="bg-primary/10 p-3 rounded-md flex items-center justify-center">
-                <span className="font-medium">Score: {score}/{noteCount}</span>
-                <span className="ml-2 text-sm text-muted-foreground">
-                  ({Math.round((score / noteCount) * 100)}%)
-                </span>
+                ))}
               </div>
-            )}
-          </div>
+              
+              <Piano 
+                keyId={keySignature} 
+                activeDegrees={getDegreeNotes()}
+                onKeyPress={handlePianoKeyPress}
+                disabled={showAnswers || isProcessingAudio}
+              />
+              
+              <div className="flex justify-between mt-4">
+                {!submitted ? (
+                  <Button 
+                    onClick={validateAnswers} 
+                    disabled={userAnswers.some(a => !a.trim()) || isProcessingAudio}
+                  >
+                    Submit Answers
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleNextMelody} 
+                    variant="default"
+                    disabled={isProcessingAudio}
+                  >
+                    <SkipForward className="mr-2 h-4 w-4" />
+                    Next
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

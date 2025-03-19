@@ -1,3 +1,122 @@
+  
+"use client"
+import React, { useEffect, useState, useRef, forwardRef, useImperativeHandle } from 'react';
+
+import { MelodyConfigParams } from './MelodyConfig';
+import { playSequence } from '@/lib/melodyGenerators';
+
+interface MelodyGeneratorProps {
+  keyId: string;
+  musicalKey: string;
+  notes: string[];
+  range: [string, string];
+  bpm: number;
+  loop: boolean;
+  rhythm: boolean;
+  numberOfNotes: number;
+  melody: string[];
+  setGeneratedSequence: (sequence: string[]) => void;
+  allNotes: string[];
+}
+
+playsequence to play the melody
+
+
+                    return (
+    <div className="flex flex-col items-center w-full max-w-3xl mx-auto">
+      <div className="flex w-full space-x-4 mb-4">
+        <button 
+          onClick={handlePlayClick}
+          className={`px-4 py-2 rounded-lg font-medium text-white ${isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
+        >
+          {isPlaying ? 'Stop' : 'Play Melody'}
+        </button>
+
+                  <button 
+          onClick={resetGame}
+          className="px-4 py-2 rounded-lg font-medium text-white bg-gray-500 hover:bg-gray-600"
+        >
+          New Melody
+        </button>
+      </div>
+            {rhythm && (
+        <div className="w-full mb-4 bg-gray-100 p-3 rounded-lg">
+          <div className="text-sm font-medium mb-2">Rhythm:</div>
+          <div className="flex space-x-2">
+            {fullSequence.map((item, index) => (
+              <div 
+                key={index} 
+                className={`flex items-center justify-center rounded-lg ${
+                  item.type === "note" 
+                    ? currentNote === index && isPlaying
+                      ? "bg-green-500 text-white" 
+                      : "bg-blue-200"
+                    : "bg-gray-300"
+                }`}
+                style={{ 
+                  width: `${Math.max(item.duration === "1n" ? 128 : item.duration === "2n" ? 64 : item.duration === "4n" ? 32 : 16, 32)}px`,
+                  height: "32px"
+                }}
+              >
+                {item.type === "note" ? (hideNotes ? "●" : item.note.replace(/\d+$/, '')) : "–"}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+               {!hideNotes && (
+        <div className="w-full mb-6">
+          <div className="text-sm font-medium mb-2">Generated Sequence:</div>
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            {generatedSequence.map((note, index) => (
+              <div 
+                key={index} 
+                className={`px-3 py-1 rounded-md ${
+                  currentNote === index && isPlaying 
+                    ? "bg-green-500 text-white" 
+                    : "bg-gray-100"
+                }`}
+              >
+                {note.replace(/\d+$/, '')}
+              </div>
+            ))}
+          </div>
+        </div>
+
+
+           <div className="w-full mb-6">
+           <div className="text-sm font-medium mb-2">Your Answer:</div>
+           <div className="flex space-x-2 overflow-x-auto pb-2">
+             {userAnswers.map((answer, index) => (
+               <div 
+                 key={index} 
+                 className={`px-3 py-1 rounded-md min-w-[40px] h-[32px] text-center ${
+                   showFeedback 
+                     ? feedback[index] ? "bg-green-100 border border-green-500" : "bg-red-100 border border-red-500"
+                     : "bg-gray-100 border border-gray-300"
+                 }`}
+               >
+                 {answer}
+               </div>
+             ))}
+           </div>
+         </div>
+          
+          <button 
+          onClick={checkAnswers}
+          className="px-4 py-2 rounded-lg font-medium text-white bg-yellow-500 hover:bg-yellow-600"
+          disabled={userAnswers.some(answer => answer === '')}
+        >
+          Check Answers
+        </button>
+  
+  
+  
+  
+  
+  
+  
+  
   {showFeedback && (
         <div className="w-full mt-4 p-4 bg-gray-50 rounded-lg">
           <div className="text-lg font-medium mb-2">Results:</div>
