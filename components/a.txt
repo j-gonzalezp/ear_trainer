@@ -1,0 +1,20 @@
+  {showFeedback && (
+        <div className="w-full mt-4 p-4 bg-gray-50 rounded-lg">
+          <div className="text-lg font-medium mb-2">Results:</div>
+          <div className="flex flex-col space-y-2">
+            {feedback.map((result, index) => (
+              <div 
+                key={index} 
+                className={`px-3 py-2 rounded-md ${result ? "bg-green-100" : "bg-red-100"}`}
+              >
+                {result ? (
+                  <>
+                    <span className="font-medium">Correct!</span> The note was {generatedSequence[index].replace(/\d+$/, '')}.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">Incorrect.</span> You entered {userAnswers[index]}, but the note was {generatedSequence[index].replace(/\d+$/, '')}.
+                  </>
+                )}
+              </div>
+            ))}

@@ -1,102 +1,462 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Rhythm Generator</title>
+  <title>Notes Functions Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input, select {
+      padding: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .results {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+    }
+    .note {
+      display: inline-block;
+      padding: 5px 10px;
+      margin: 3px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+    .note.null {
+      background-color: #ffeeee;
+      color: #999;
+      text-decoration: line-through;
+    }
+    .note.available {
+      background-color: #e0ffe0;
+    }
+    .note.selected {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+    }
+    #notesWithNullsDisplay {
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 10px;
+      border: 1px solid #eee;
+    }
+  </style>
 </head>
 <body>
-  <h1>Test Rhythm Generator</h1>
-  <button onclick="testRhythm()">Generar Ritmo</button>
-  <pre id="output"></pre>
+  <h1>Notes Functions Test</h1>
+  
+  <div class="form-group">
+    <label for="keyId">Key:</label>
+    <select id="keyId">
+      <option value="">None</option>
+      <option value="C">C</option>
+      <option value="C#">C#</option>
+      <option value="D">D</option>
+      <option value="D#">D#</option>
+      <option value="E">E</option>
+      <option value="F">F</option>
+      <option value="F#">F#</option>
+      <option value="G">G</option>
+      <option value="G#">G#</option>
+      <option value="A">A</option>
+      <option value="A#">A#</option>
+      <option value="B">B</option>
+    </select>
+  </div>
+  
+  <div class="form-group">
+    <label for="notes">Notes/Degrees (comma separated):</label>
+    <input type="text" id="notes" placeholder="e.g. C,E,G or 1,3,5" value="1,3,5">
+  </div>
+  
+  <div class="form-group">
+    <label for="rangeStart">Range Start:</label>
+    <select id="rangeStart"></select>
+  </div>
+  
+  <div class="form-group">
+    <label for="rangeEnd">Range End:</label>
+    <select id="rangeEnd"></select>
+  </div>
+  
+  <div class="form-group">
+    <label for="numberOfNotes">Number of Notes:</label>
+    <input type="number" id="numberOfNotes" min="1" max="20" value="8">
+  </div>
+  
+  <div class="form-group">
+    <label for="minInterval">Min Interval:</label>
+    <input type="number" id="minInterval" min="0" value="1">
+  </div>
+  
+  <div class="form-group">
+    <label for="maxInterval">Max Interval:</label>
+    <input type="number" id="maxInterval" min="1" value="12">
+  </div>
+  
+  <button id="testAvailable">Test Available Notes</button>
+  <button id="generateSequence">Generate Sequence</button>
+  
+  <div class="results">
+    <h2>Results</h2>
+    <div id="notesWithNulls">
+      <h3>All Notes (available highlighted):</h3>
+      <div id="notesWithNullsDisplay"></div>
+    </div>
+    <div id="availableNotes">
+      <h3>Available Notes:</h3>
+      <div id="availableNotesDisplay"></div>
+    </div>
+    <div id="generatedSequence">
+      <h3>Generated Sequence:</h3>
+      <div id="sequenceDisplay"></div>
+    </div>
+  </div>
 
   <script>
-    function rhythmGenerator({ 
-      totalBeats = 4, 
-      shortestDuration = "8n", 
-      longestDuration = "2n", 
-      n = 4, 
-      allowRests = true,
-      restProbability = 0.2 
-    } = {}) {
-      const durationToValue = (duration) => {
-        const durationMap = {
-          "1n": 4,
-          "2n": 2,
-          "4n": 1,
-          "8n": 0.5,
-          "16n": 0.25,
-          "32n": 0.125,
-          "64n": 0.0625
-        };
-        return durationMap[duration] || 0;
-      };
-
-      const minDuration = durationToValue(shortestDuration);
-      const maxDuration = durationToValue(longestDuration);
-      
-      const getRandomDuration = (maxAllowed) => {
-        const possibleDurations = [];
-        let current = minDuration;
-        
-        while (current <= maxDuration && current <= maxAllowed) {
-          possibleDurations.push(current);
-          current *= 2;
-        }
-        
-        if (possibleDurations.length === 0) {
-          return minDuration;
-        }
-        
-        const randomIndex = Math.floor(Math.random() * possibleDurations.length);
-        return possibleDurations[randomIndex];
-      };
-      
-      const valueToNotation = (value) => {
-        const valueMap = {
-          4: "1n",
-          2: "2n",
-          1: "4n",
-          0.5: "8n",
-          0.25: "16n",
-          0.125: "32n",
-          0.0625: "64n"
-        };
-        return valueMap[value] || "4n";
-      };
-      
-      const rhythm = [];
-      let remainingBeats = totalBeats;
-      let remainingNotes = n;
-      
-      while (remainingNotes > 0) {
-        const maxAllowedDuration = remainingBeats - ((remainingNotes - 1) * minDuration);
-        
-        if (maxAllowedDuration < minDuration) {
-          console.warn("No es posible generar el ritmo con los parámetros dados");
-          return [];
-        }
-        
-        const isRest = allowRests && Math.random() < restProbability;
-        const duration = getRandomDuration(maxAllowedDuration);
-        
-        rhythm.push({
-          duration: valueToNotation(duration),
-          time: totalBeats - remainingBeats,
-          value: duration,
-          isRest
-        });
-        
-        remainingBeats -= duration;
-        remainingNotes--;
-      }
-      
-      return rhythm;
+    // Define the corrected allNotes array
+    const allNotes = [
+      "A0", "A#0", "B0",
+      "C1", "C#1", "D1", "D#1", "E1", "F1", "F#1", "G1", "G#1", "A1", "A#1", "B1",
+      "C2", "C#2", "D2", "D#2", "E2", "F2", "F#2", "G2", "G#2", "A2", "A#2", "B2",
+      "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3",
+      "C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4",
+      "C5", "C#5", "D5", "D#5", "E5", "F5", "F#5", "G5", "G#5", "A5", "A#5", "B5",
+      "C6", "C#6", "D6", "D#6", "E6", "F6", "F#6", "G6", "G#6", "A6", "A#6", "B6",
+      "C7", "C#7", "D7", "D#7", "E7", "F7", "F#7", "G7", "G#7", "A7", "A#7", "B7",
+      "C8"
+    ];
+    
+    // Calculate interval function
+    function calculateInterval(note1, note2) {
+      const index1 = allNotes.indexOf(note1);
+      const index2 = allNotes.indexOf(note2);
+      return Math.abs(index1 - index2);
     }
     
-    function testRhythm() {
-      const rhythm = rhythmGenerator();
-      document.getElementById('output').textContent = JSON.stringify(rhythm, null, 2);
+    // Interface for the note sequencer params (not actually used in JS but kept for reference)
+    // interface NoteSequencerParams {
+    //   keyId?: string;
+    //   notes: string[];
+    //   range: string[];
+    //   numberOfNotes: number;
+    //   maxInterval?: number;
+    //   minInterval?: number;
+    // }
+
+    // The availableNotes function
+    const availableNotes = ({
+      allNotes,
+      range,
+      notes,
+      keyId
+    }) => {
+      if (!range || range.length !== 2) {
+        return [];
+      }
+    
+      const startIndex = allNotes.indexOf(range[0]);
+      const endIndex = allNotes.indexOf(range[1]);
+    
+      if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
+        return [];
+      }
+    
+      const notesInRange = allNotes.slice(startIndex, endIndex + 1);
+    
+      if (!notes || notes.length === 0) {
+        return notesInRange;
+      }
+    
+      const chromaticNotes = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+      ];
+    
+      const keyIndex = chromaticNotes.indexOf(keyId);
+      if (keyIndex === -1) {
+        return notesInRange;
+      }
+    
+      const degreeToNoteMap = {};
+      for (let i = 0; i < chromaticNotes.length; i++) {
+        const noteIndex = (keyIndex + i) % chromaticNotes.length;
+        const note = chromaticNotes[noteIndex];
+        
+        let degree;
+        switch (i) {
+          case 0: degree = "1"; break;
+          case 1: degree = "1#"; break;
+          case 2: degree = "2"; break;
+          case 3: degree = "2#"; break;
+          case 4: degree = "3"; break;
+          case 5: degree = "4"; break;
+          case 6: degree = "4#"; break;
+          case 7: degree = "5"; break;
+          case 8: degree = "5#"; break;
+          case 9: degree = "6"; break;
+          case 10: degree = "6#"; break;
+          case 11: degree = "7"; break;
+          default: degree = "?";
+        }
+        
+        degreeToNoteMap[degree] = note;
+      }
+    
+      const noteToDegreeMap = {};
+      Object.entries(degreeToNoteMap).forEach(([degree, note]) => {
+        noteToDegreeMap[note] = degree;
+      });
+    
+      const result = notesInRange.filter(fullNote => {
+        const noteName = fullNote.replace(/\d+$/, '');
+        
+        if (notes.includes(noteName)) {
+          return true;
+        }
+        
+        const degree = noteToDegreeMap[noteName];
+        return notes.includes(degree);
+      });
+    
+      if (keyId && keyId.length > 0) {
+        const keyNotes = result.filter(note => note.replace(/\d+$/, '') === keyId);
+        
+        if (keyNotes.length > 0) {
+          const firstKeyNote = keyNotes[0];
+          const firstKeyIndex = result.indexOf(firstKeyNote);
+          
+          if (firstKeyIndex !== -1) {
+            const beforeKey = result.slice(0, firstKeyIndex);
+            const fromKey = result.slice(firstKeyIndex);
+            return [...fromKey, ...beforeKey];
+          }
+        }
+      }
+    
+      return result;
+    };
+
+    // The generateNoteSequence function
+    const generateNoteSequence = ({
+      keyId,
+      notes,
+      range,
+      numberOfNotes,
+      maxInterval,
+      minInterval
+    }) => {
+      try {
+        const available = availableNotes({
+          allNotes,
+          range,
+          notes,
+          keyId: keyId || ''
+        });
+    
+        if (available.length === 0) {
+          return [];
+        }
+    
+        const notesWithNulls = allNotes.map(note => 
+          available.includes(note) ? note : null
+        );
+        
+        // Display notesWithNulls in the DOM
+        displayNotesWithNulls(notesWithNulls, available);
+    
+        const newSequence = [];
+    
+        const validInitialNotes = notesWithNulls.filter(note => note !== null);
+        const firstNoteIndex = Math.floor(Math.random() * validInitialNotes.length);
+        const firstNote = validInitialNotes[firstNoteIndex];
+        newSequence.push(firstNote);
+    
+        for (let i = 1; i < numberOfNotes; i++) {
+          const previousNote = newSequence[i - 1];
+          const validNotes = [];
+    
+          for (let j = 0; j < notesWithNulls.length; j++) {
+            const note = notesWithNulls[j];
+            
+            if (note === null) continue;
+            
+            const interval = calculateInterval(note, previousNote);
+    
+            const meetsMaxConstraint = maxInterval === undefined || interval <= maxInterval;
+            const meetsMinConstraint = minInterval === undefined || interval >= minInterval;
+    
+            if (meetsMaxConstraint && meetsMinConstraint) {
+              validNotes.push(note);
+            }
+          }
+    
+          if (validNotes.length === 0) {
+            throw new Error(`No valid notes meet interval constraints from ${previousNote}`);
+          }
+    
+          const nextNoteIndex = Math.floor(Math.random() * validNotes.length);
+          const nextNote = validNotes[nextNoteIndex];
+    
+          if (nextNote === null || !available.includes(nextNote)) {
+            throw new Error(`Selected note ${nextNote} is not in available notes!`);
+          }
+    
+          newSequence.push(nextNote);
+        }
+    
+        return newSequence;
+      } catch (error) {
+        console.error(error);
+        return [];
+      }
+    };
+
+    // UI setup
+    document.addEventListener('DOMContentLoaded', () => {
+      const rangeStartSelect = document.getElementById('rangeStart');
+      const rangeEndSelect = document.getElementById('rangeEnd');
+      
+      // Populate range selects with correct allNotes
+      allNotes.forEach(note => {
+        rangeStartSelect.add(new Option(note, note));
+        rangeEndSelect.add(new Option(note, note));
+      });
+      
+      // Set default values to more common range
+      rangeStartSelect.value = 'C3';
+      rangeEndSelect.value = 'C5';
+      
+      // Button event listeners
+      document.getElementById('testAvailable').addEventListener('click', testAvailableNotes);
+      document.getElementById('generateSequence').addEventListener('click', testGenerateSequence);
+    });
+    
+    // Functions to display results
+    function displayNotesWithNulls(notesWithNulls, availableNotesArray) {
+      const display = document.getElementById('notesWithNullsDisplay');
+      display.innerHTML = '';
+      
+      notesWithNulls.forEach((note, index) => {
+        const noteElem = document.createElement('span');
+        noteElem.classList.add('note');
+        
+        if (note === null) {
+          noteElem.textContent = allNotes[index] + ' (null)';
+          noteElem.classList.add('null');
+        } else {
+          noteElem.textContent = note;
+          if (availableNotesArray.includes(note)) {
+            noteElem.classList.add('available');
+          }
+        }
+        
+        display.appendChild(noteElem);
+      });
+    }
+    
+    function displayAvailableNotes(notes) {
+      const display = document.getElementById('availableNotesDisplay');
+      display.innerHTML = '';
+      
+      if (notes.length === 0) {
+        display.textContent = 'No available notes found.';
+        return;
+      }
+      
+      notes.forEach(note => {
+        const noteElem = document.createElement('span');
+        noteElem.classList.add('note');
+        noteElem.classList.add('available');
+        noteElem.textContent = note;
+        display.appendChild(noteElem);
+      });
+    }
+    
+    function displaySequence(sequence) {
+      const display = document.getElementById('sequenceDisplay');
+      display.innerHTML = '';
+      
+      if (sequence.length === 0) {
+        display.textContent = 'No sequence generated.';
+        return;
+      }
+      
+      sequence.forEach((note, index) => {
+        const noteElem = document.createElement('span');
+        noteElem.classList.add('note');
+        noteElem.classList.add('selected');
+        noteElem.textContent = `${index+1}: ${note}`;
+        display.appendChild(noteElem);
+      });
+    }
+    
+    // Test functions
+    function getParams() {
+      return {
+        keyId: document.getElementById('keyId').value,
+        notes: document.getElementById('notes').value.split(',').map(n => n.trim()),
+        range: [
+          document.getElementById('rangeStart').value,
+          document.getElementById('rangeEnd').value
+        ],
+        numberOfNotes: parseInt(document.getElementById('numberOfNotes').value, 10),
+        minInterval: parseInt(document.getElementById('minInterval').value, 10),
+        maxInterval: parseInt(document.getElementById('maxInterval').value, 10)
+      };
+    }
+    
+    function testAvailableNotes() {
+      const params = getParams();
+      const available = availableNotes({
+        allNotes,
+        range: params.range,
+        notes: params.notes,
+        keyId: params.keyId
+      });
+      
+      // Create notesWithNulls for display
+      const notesWithNulls = allNotes.map(note => 
+        available.includes(note) ? note : null
+      );
+      
+      displayNotesWithNulls(notesWithNulls, available);
+      displayAvailableNotes(available);
+      displaySequence([]);
+      
+      console.log("Available Notes:", available);
+      console.log("Notes with Nulls:", notesWithNulls);
+    }
+    
+    function testGenerateSequence() {
+      const params = getParams();
+      const sequence = generateNoteSequence(params);
+      displaySequence(sequence);
+      
+      console.log("Generated Sequence:", sequence);
     }
   </script>
 </body>
