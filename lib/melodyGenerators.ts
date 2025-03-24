@@ -480,7 +480,7 @@ export const playSequence = async ({
   piano, 
   metronomeInstruments, 
   loop = false, 
-  bpm = 120, 
+  bpm = 200, 
   onNotePlay = null,
   onLoopStart = null,
   onLoopEnd = null
@@ -682,7 +682,7 @@ export const playSequences = async ({
   piano, 
   metronomeInstruments, 
   loop = false, 
-  bpm = 120, 
+  bpm = 200, 
   onNotePlay = null,
   onLoopStart = null,
   onLoopEnd = null

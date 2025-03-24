@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import MelodyInquirer from '@/components/MelodyInquirer';
+import MelodyTester from '@/components/MelodyTester';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -23,49 +23,49 @@ export default function LevelPage() {
       maxInterval: 12,
       minInterval: 1,
       totalBeats: 2,
-      bpm: 80
+      bpm: 200
     },
     2: {
       numberOfNotes: 3,
       maxInterval: 3,
       minInterval: 1,
       totalBeats: 3,
-      bpm: 80
+      bpm: 200
     },
     3: {
       numberOfNotes: 4,
       maxInterval: 4,
       minInterval: 1,
       totalBeats: 4,
-      bpm: 90
+      bpm: 200
     },
     4: {
       numberOfNotes: 5,
       maxInterval: 5,
       minInterval: 1,
       totalBeats: 5,
-      bpm: 100
+      bpm: 200
     },
     5: {
       numberOfNotes: 6,
       maxInterval: 6,
       minInterval: 1,
       totalBeats: 6,
-      bpm: 110
+      bpm: 200
     },
     6: {
       numberOfNotes: 7,
       maxInterval: 7,
       minInterval: 1,
       totalBeats: 7,
-      bpm: 120
+      bpm: 200
     }
   }[level] || {
     numberOfNotes: 2,
     maxInterval: 2,
     minInterval: 1,
     totalBeats: 2,
-    bpm: 80
+    bpm: 200
   };
   
   const availableNotes = getAvailableNotes(level, currentGroup, totalGroups);
@@ -196,7 +196,7 @@ export default function LevelPage() {
           </Card>
         </header>
         
-        <MelodyInquirer
+        <MelodyTester
           melody={melody}
           onGenerateNew={generateNewMelody}
           keyId="C"

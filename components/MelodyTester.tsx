@@ -61,14 +61,14 @@ const defaultParams: ExerciseParams = {
   totalQuestions: 5,
   keyId: "C",
   notesPerQuestion: 3,
-  bpm: 100,
+  bpm: 200,
   showPreview: true,
   previewDuration: 5000,
   maxInterval: 5,
   minInterval: 1
 };
 
-const MelodyInquirer = () => {
+const MelodyTester = () => {
   const [piano, setPiano] = useState<Tone.Sampler | Tone.PolySynth<Tone.Synth<Tone.SynthOptions>> | null>(null);
   const [metronomeInstruments, setMetronomeInstruments] = useState<MetronomeInstruments | null>(null);
   const [currentMelody, setCurrentMelody] = useState<MelodyData | null>(null);
@@ -551,4 +551,4 @@ const MelodyInquirer = () => {
   );
 };
 
-export default MelodyInquirer;
+export default MelodyTester;
