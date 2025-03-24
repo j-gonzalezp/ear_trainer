@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Tone from 'tone';
 import { Button } from "@/components/ui/button";
 
@@ -8,7 +8,7 @@ interface CadencePlayerProps {
   musicalKey: string;
   bpm?: number;
   onCadenceComplete?: () => void;
-  pianoInstrument?: any;
+  pianoInstrument?: Tone.Sampler;
   autoPlay?: boolean;
 }
 
@@ -20,8 +20,120 @@ const CadencePlayer: React.FC<CadencePlayerProps> = ({
   autoPlay = false
 }) => {
   const [isPlayingCadence, setIsPlayingCadence] = useState<boolean>(false);
-  const pianoRef = useRef<any>(null);
+  const pianoRef = useRef<Tone.Sampler | null>(null);
   const cadenceRef = useRef<Tone.Part | null>(null);
+
+  const getNoteAtInterval = useCallback((baseNote: string, semitones: number) => {
+    const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const noteName = baseNote.replace(/\d+$/, '');
+    const octave = parseInt(baseNote.match(/\d+$/)?.[0] || "4");
+    
+    let noteIndex = notes.indexOf(noteName);
+    if (noteIndex === -1) return baseNote;
+    
+    noteIndex += semitones;
+    const octaveShift = Math.floor(noteIndex / 12);
+    noteIndex = noteIndex % 12;
+    
+    return notes[noteIndex] + (octave + octaveShift);
+  }, []);
+
+  const getCadenceChords = useCallback(() => {
+    if (!musicalKey) return [];
+    
+    const chromaticNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const keyIndex = chromaticNotes.indexOf(musicalKey);
+    if (keyIndex === -1) return [];
+    
+    const tonic = musicalKey + "4";
+    
+    const subdominantIndex = (keyIndex + 5) % 12;
+    const subdominant = chromaticNotes[subdominantIndex] + "4";
+    
+    const dominantIndex = (keyIndex + 7) % 12;
+    const dominant = chromaticNotes[dominantIndex] + "4";
+    
+    const chords = [
+      [tonic, getNoteAtInterval(tonic, 4), getNoteAtInterval(tonic, 7)],
+      [subdominant, getNoteAtInterval(subdominant, 4), getNoteAtInterval(subdominant, 7)],
+      [dominant, getNoteAtInterval(dominant, 4), getNoteAtInterval(dominant, 7)],
+      [tonic, getNoteAtInterval(tonic, 4), getNoteAtInterval(tonic, 7)]
+    ];
+    
+    console.log(`Generated cadence chords for ${musicalKey}:`, chords);
+    return chords;
+  }, [musicalKey, getNoteAtInterval]);
+
+  const stopCadence = useCallback(() => {
+    if (cadenceRef.current) {
+      console.log("Stopping cadence");
+      cadenceRef.current.stop();
+      cadenceRef.current.dispose();
+      cadenceRef.current = null;
+    }
+    
+    console.log("Stopping Tone.js transport");
+    Tone.Transport.stop();
+    setIsPlayingCadence(false);
+  }, []);
+
+  const playCadence = useCallback(async () => {
+    if (Tone.context.state !== "running") {
+      console.log("Starting Tone.js audio context");
+      await Tone.start();
+    }
+  
+    if (isPlayingCadence) {
+      console.log("Stopping current cadence playback");
+      stopCadence();
+      return;
+    }
+  
+    setIsPlayingCadence(true);
+    console.log("Starting cadence playback");
+  
+    const chords = getCadenceChords();
+    if (chords.length === 0 || !pianoRef.current) {
+      console.error("No chords generated or piano not available");
+      setIsPlayingCadence(false);
+      return;
+    }
+  
+    if (cadenceRef.current) {
+      console.log("Disposing of existing cadence");
+      cadenceRef.current.dispose();
+    }
+  
+    let chordIndex = 0;
+  
+    cadenceRef.current = new Tone.Part((time, chord) => {
+      if (chord && pianoRef.current) {
+        console.log(`Playing chord ${chordIndex + 1}:`, chord);
+        pianoRef.current.triggerAttackRelease(chord, "2n", time);
+      }
+  
+      chordIndex++;
+  
+      if (chordIndex >= chords.length) {
+        Tone.Transport.scheduleOnce(() => {
+          console.log("Cadence complete");
+          stopCadence();
+          if (onCadenceComplete) {
+            console.log("Calling onCadenceComplete callback");
+            onCadenceComplete();
+          }
+        }, `+2n`);
+      }
+    }, chords.map((chord, i) => [i * Tone.Time("2n").toSeconds(), chord]));
+  
+    cadenceRef.current.start(0);
+    console.log("Cadence part started");
+  
+    if (Tone.Transport.state !== "started") {
+      console.log("Starting Tone.js transport");
+      Tone.Transport.start();
+    }
+  }, [isPlayingCadence, stopCadence, getCadenceChords, onCadenceComplete]);
 
   useEffect(() => {
     if (pianoInstrument) {
@@ -90,119 +202,7 @@ const CadencePlayer: React.FC<CadencePlayerProps> = ({
         cadenceRef.current.dispose();
       }
     };
-  }, [bpm, pianoInstrument, autoPlay]);
-
-  const getCadenceChords = () => {
-    if (!musicalKey) return [];
-    
-    const chromaticNotes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    const keyIndex = chromaticNotes.indexOf(musicalKey);
-    if (keyIndex === -1) return [];
-    
-    const tonic = musicalKey + "4";
-    
-    const subdominantIndex = (keyIndex + 5) % 12;
-    const subdominant = chromaticNotes[subdominantIndex] + "4";
-    
-    const dominantIndex = (keyIndex + 7) % 12;
-    const dominant = chromaticNotes[dominantIndex] + "4";
-    
-    const chords = [
-      [tonic, getNoteAtInterval(tonic, 4), getNoteAtInterval(tonic, 7)],
-      [subdominant, getNoteAtInterval(subdominant, 4), getNoteAtInterval(subdominant, 7)],
-      [dominant, getNoteAtInterval(dominant, 4), getNoteAtInterval(dominant, 7)],
-      [tonic, getNoteAtInterval(tonic, 4), getNoteAtInterval(tonic, 7)]
-    ];
-    
-    console.log(`Generated cadence chords for ${musicalKey}:`, chords);
-    return chords;
-  };
-  
-  const getNoteAtInterval = (baseNote: string, semitones: number) => {
-    const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    const noteName = baseNote.replace(/\d+$/, '');
-    const octave = parseInt(baseNote.match(/\d+$/)?.[0] || "4");
-    
-    let noteIndex = notes.indexOf(noteName);
-    if (noteIndex === -1) return baseNote;
-    
-    noteIndex += semitones;
-    const octaveShift = Math.floor(noteIndex / 12);
-    noteIndex = noteIndex % 12;
-    
-    return notes[noteIndex] + (octave + octaveShift);
-  };
-  
-  const playCadence = async () => {
-    if (Tone.context.state !== "running") {
-      console.log("Starting Tone.js audio context");
-      await Tone.start();
-    }
-  
-    if (isPlayingCadence) {
-      console.log("Stopping current cadence playback");
-      stopCadence();
-      return;
-    }
-  
-    setIsPlayingCadence(true);
-    console.log("Starting cadence playback");
-  
-    const chords = getCadenceChords();
-    if (chords.length === 0 || !pianoRef.current) {
-      console.error("No chords generated or piano not available");
-      setIsPlayingCadence(false);
-      return;
-    }
-  
-    if (cadenceRef.current) {
-      console.log("Disposing of existing cadence");
-      cadenceRef.current.dispose();
-    }
-  
-    let chordIndex = 0;
-  
-    cadenceRef.current = new Tone.Part((time, chord) => {
-      if (chord && pianoRef.current) {
-        console.log(`Playing chord ${chordIndex + 1}:`, chord);
-        pianoRef.current.triggerAttackRelease(chord, "2n", time);
-      }
-  
-      chordIndex++;
-  
-      if (chordIndex >= chords.length) {
-        Tone.Transport.scheduleOnce(() => {
-          console.log("Cadence complete");
-          stopCadence();
-          if (onCadenceComplete) {
-            console.log("Calling onCadenceComplete callback");
-            onCadenceComplete();
-          }
-        }, `+2n`);
-      }
-    }, chords.map((chord, i) => [i * Tone.Time("2n").toSeconds(), chord]));
-  
-    cadenceRef.current.start(0);
-    console.log("Cadence part started");
-  
-    if (Tone.Transport.state !== "started") {
-      console.log("Starting Tone.js transport");
-      Tone.Transport.start();
-    }
-  };
-
-  const stopCadence = () => {
-    if (cadenceRef.current) {
-      console.log("Stopping cadence");
-      cadenceRef.current.stop();
-      cadenceRef.current.dispose();
-      cadenceRef.current = null;
-    }
-    
-    console.log("Stopping Tone.js transport");
-    Tone.Transport.stop();
-    setIsPlayingCadence(false);
-  };
+  }, [bpm, pianoInstrument, autoPlay, playCadence]);
 
   return (
     <div>

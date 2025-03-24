@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "mocha tests/**/*.ts"
+    "test": "mocha tests/**/*.ts",
+      "dev:api": "json-server --watch db.json --port 3001"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.6",
     "@radix-ui/react-label": "^2.1.2",
     "@radix-ui/react-select": "^2.1.6",
     "@radix-ui/react-slider": "^1.2.3",
@@ -37,6 +39,7 @@
     "chai": "^5.2.0",
     "eslint": "^9",
     "eslint-config-next": "15.2.2",
+    "json-server": "^1.0.0-beta.3",
     "mocha": "^11.1.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",

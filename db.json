@@ -1,0 +1,50 @@
+{
+    "tests": [
+      {
+        "keyId": 1,
+        "userId": 101,
+        "groupId": 201,
+        "exerciseId": 301,
+        "range": "C4-C6",
+        "notes": ["C4", "E4", "G4", "C5"],
+        "numberOfNotes": 4,
+        "totalBeats": 16,
+        "maxInterval": 7,
+        "minInterval": 1,
+        "bpm": 120,
+        "results": [85, 90, 78, 92],
+        "graduation": true
+      },
+      {
+        "keyId": 2,
+        "userId": 102,
+        "groupId": 202,
+        "exerciseId": 302,
+        "range": "A3-F5",
+        "notes": ["A3", "C4", "D4", "F4", "A4"],
+        "numberOfNotes": 5,
+        "totalBeats": 20,
+        "maxInterval": 9,
+        "minInterval": 3,
+        "bpm": 100,
+        "results": [80, 88, 76, 85],
+        "graduation": true
+      },
+      {
+        "keyId": 3,
+        "userId": 103,
+        "groupId": 203,
+        "exerciseId": 303,
+        "range": "D4-B5",
+        "notes": ["D4", "F#4", "A4", "C5", "E5", "G5"],
+        "numberOfNotes": 6,
+        "totalBeats": 24,
+        "maxInterval": 11,
+        "minInterval": 2,
+        "bpm": 110,
+        "results": [92, 87, 90, 94],
+        "graduation": false
+      }
+    ]
+  }
+  

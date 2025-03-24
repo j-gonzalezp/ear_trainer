@@ -32,13 +32,13 @@ export const rhythmGenerator = ({
 
   const getRandomDuration = (min, max) => {
     const availableDurations = Object.entries(durationValues)
-      .filter(([_, value]) => value >= min && value <= max)
+      .filter(([, value]) => value >= min && value <= max)
       .map(([name, value]) => ({ name, value }));
-
+  
     if (availableDurations.length === 0) {
       throw new Error(`No available durations between ${min} and ${max}`);
     }
-
+  
     const randomIndex = Math.floor(Math.random() * availableDurations.length);
     return availableDurations[randomIndex];
   };
@@ -225,7 +225,7 @@ export const getDegreeFromNote = (note, keyId) => {
     return "?";
   }
 
-  let degreeIndex = (noteIndex - keyIndex + 12) % 12;
+  const degreeIndex = (noteIndex - keyIndex + 12) % 12;
 
   let degree;
   switch (degreeIndex) {
@@ -354,7 +354,7 @@ export const generateNoteSequence = ({
     }
 
     return newSequence;
-  } catch (error) {
+  } catch (error) { throw new(error)
     return [];
   }
 };
@@ -525,6 +525,209 @@ export const playSequence = async ({
     return events;
   };
   
+  const humanizeTime = (timeValue) => {
+    const variation = (Math.random() * 0.04) - 0.02;
+    return timeValue + variation;
+  };
+  
+  const humanizeVelocity = (baseVelocity) => {
+    const variation = (Math.random() * 0.25) - 0.05;
+    return Math.min(1, Math.max(0.4, baseVelocity + variation));
+  };
+  
+  const humanizeDuration = (duration) => {
+    const shortening = Math.random() * 0.15;
+    const lengthening = Math.random() * 0.1;
+    const modification = Math.random() > 0.7 ? lengthening : -shortening;
+    return Math.max(0.1, duration * (1 + modification));
+  };
+  
+  const play = () => {
+    if (isPlaying) return;
+    
+    if (metronomeSeq) {
+      metronomeSeq.dispose();
+    }
+    
+    if (notesSequence) {
+      notesSequence.dispose();
+    }
+    
+    loopCount = 0;
+    isPlaying = true;
+    
+    piano.disconnect();
+    piano.connect(pianoChannel);
+    
+    if (metronomeInstruments) {
+      if (metronomeInstruments.metronome) {
+        metronomeInstruments.metronome.disconnect();
+        metronomeInstruments.metronome.connect(metronomeChannel);
+      }
+      
+      if (metronomeInstruments.metronomeAccent) {
+        metronomeInstruments.metronomeAccent.disconnect();
+        metronomeInstruments.metronomeAccent.connect(metronomeChannel);
+      }
+    }
+    
+    const metronomeEvents = createMetronomeEvents(Math.ceil(totalBeats));
+    metronomeSeq = new Tone.Part((time, event) => {
+      if (metronomeInstruments) {
+        if (event.isAccent) {
+          metronomeInstruments.metronomeAccent.triggerAttackRelease(event.note, "32n", time, event.velocity);
+        } else {
+          metronomeInstruments.metronome.triggerAttackRelease(event.note, "32n", time, event.velocity);
+        }
+      }
+    }, metronomeEvents).start(0);
+    
+    metronomeSeq.loop = loop;
+    metronomeSeq.loopEnd = totalBeats;
+    
+    const noteEvents = fullSequence.map(item => {
+      return {
+        time: item.startTime,
+        item: item
+      };
+    });
+    
+    notesSequence = new Tone.Part((time, event) => {
+      const item = event.item;
+      
+      if (item.type === "note") {
+        const humanizedTime = humanizeTime(time);
+        const humanizedVelocity = humanizeVelocity(0.8);
+        const humanizedDuration = humanizeDuration(item.duration);
+        
+        piano.triggerAttackRelease(
+          item.note, 
+          humanizedDuration, 
+          humanizedTime, 
+          humanizedVelocity
+        );
+        
+        if (onNotePlay) {
+          const noteIndex = fullSequence.filter(item => item.type === "note")
+            .findIndex(noteItem => noteItem === item);
+          onNotePlay(humanizedTime, item.note, noteIndex);
+        }
+      }
+    }, noteEvents).start(0);
+    
+    notesSequence.loop = loop;
+    notesSequence.loopEnd = totalBeats;
+    
+    if (loop) {
+      Tone.Transport.scheduleRepeat((time) => {
+        loopCount++;
+        if (onLoopStart) {
+          onLoopStart(time, loopCount);
+        }
+        
+        Tone.Transport.scheduleOnce((endTime) => {
+          if (onLoopEnd) {
+            onLoopEnd(endTime, loopCount);
+          }
+        }, `+${totalBeats - 0.1}`);
+      }, totalBeats);
+    } else {
+      Tone.Transport.scheduleOnce(() => {
+        Tone.Transport.scheduleOnce(() => {
+          stop();
+        }, "+0.1");
+      }, totalBeats);
+    }
+    
+    if (Tone.Transport.state !== "started") {
+      Tone.Transport.start();
+    }
+  };
+  
+  const stop = () => {
+    if (notesSequence) {
+      notesSequence.stop();
+      notesSequence.dispose();
+      notesSequence = null;
+    }
+    
+    if (metronomeSeq) {
+      metronomeSeq.stop();
+      metronomeSeq.dispose();
+      metronomeSeq = null;
+    }
+    
+    Tone.Transport.cancel(0);
+    Tone.Transport.stop();
+    isPlaying = false;
+    
+    if (this.onStop) {
+      this.onStop();
+    }
+  };
+  
+  return {
+    notes: generatedNotes,
+    fullSequence: fullSequence,
+    play,
+    stop,
+    onStop: null,
+    get isPlaying() { return isPlaying; }
+  };
+};
+
+export const playSequences = async ({ 
+  generatedNotes = [], 
+  fullSequence = [], 
+  piano, 
+  metronomeInstruments, 
+  loop = false, 
+  bpm = 120, 
+  onNotePlay = null,
+  onLoopStart = null,
+  onLoopEnd = null
+} = {}) => {
+  if (Tone.context.state !== "running") {
+    await Tone.start();
+  }
+  
+  Tone.Transport.bpm.value = bpm;
+  
+  if (!generatedNotes || generatedNotes.length === 0 || !fullSequence || fullSequence.length === 0) {
+    return { play: () => { }, stop: () => { }, isPlaying: false };
+  }
+  
+  const totalBeats = fullSequence.reduce((total, item) => total + (item.value || 0), 0);
+  
+  let isPlaying = false;
+  let metronomeSeq = null;
+  let notesSequence = null;
+  let loopCount = 0;
+  let onStopCallback = null;
+  
+  const pianoChannel = new Tone.Channel({
+    volume: 0,
+    pan: 0
+  }).toDestination();
+  
+  const metronomeChannel = new Tone.Channel({
+    volume: -15,
+    pan: 0.5
+  }).toDestination();
+  
+  const createMetronomeEvents = (beats) => {
+    const events = [];
+    for (let i = 0; i < beats; i++) {
+      events.push({
+        time: i,
+        note: i % 4 === 0 ? "G2" : "E2",
+        velocity: i % 4 === 0 ? 0.6 : 0.4,
+        isAccent: i % 4 === 0
+      });
+    }
+    return events;
+  };
+  
   const humanizeTime = (time) => {
     const variation = (Math.random() * 0.04) - 0.02;
     return time + variation;
@@ -632,7 +835,7 @@ export const playSequence = async ({
         }, `+${totalBeats - 0.1}`);
       }, totalBeats);
     } else {
-      Tone.Transport.scheduleOnce((time) => {
+      Tone.Transport.scheduleOnce(() => {
         Tone.Transport.scheduleOnce(() => {
           stop();
         }, "+0.1");
@@ -661,17 +864,24 @@ export const playSequence = async ({
     Tone.Transport.stop();
     isPlaying = false;
     
-    if (this.onStop) {
-      this.onStop();
+
+    if (onStopCallback) {
+      onStopCallback();
     }
   };
-  
+
   return {
     notes: generatedNotes,
     fullSequence: fullSequence,
     play,
     stop,
-    onStop: null,
-    get isPlaying() { return isPlaying; }
+    get isPlaying() { return isPlaying; },
+   
+    set onStop(callback) {
+      onStopCallback = callback;
+    },
+    get onStop() {
+      return onStopCallback;
+    }
   };
 };

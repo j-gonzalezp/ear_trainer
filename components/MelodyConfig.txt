@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -33,27 +32,27 @@ export interface MelodyConfigParams {
 
 interface MelodyConfigProps {
   config: MelodyConfigParams;
-  onChange: (field: keyof MelodyConfigParams, value: any) => void;
+  onChange: (field: keyof MelodyConfigParams, value: MelodyConfigValue) => void;
   onGenerate?: (config: MelodyConfigParams) => void;
   hideGenerateButton?: boolean;
 }
 
+type MelodyConfigValue = string | number | boolean | string[];
+
 const MelodyConfig: React.FC<MelodyConfigProps> = ({ 
   config, 
-  onChange, 
-  onGenerate, 
-  hideGenerateButton = true 
+  onChange
 }) => {
   const keys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const durations = ["32n", "16n", "8n", "4n", "2n", "1n"];
   
-  const handleRangeChange = (index: 0 | 1, value: string) => {
+  const handleRangeChange = (index: 0 | 1, value: string): void => {
     const newRange = [...config.range] as [string, string];
     newRange[index] = value;
     onChange('range', newRange);
   };
 
-  const handlePianoSelection = (selectedDegrees: string[]) => {
+  const handlePianoSelection = (selectedDegrees: string[]): void => {
     onChange('notes', selectedDegrees);
   };
   

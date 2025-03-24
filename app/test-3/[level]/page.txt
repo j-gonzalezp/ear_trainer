@@ -1,0 +1,32 @@
+"use client"
+
+import React, { useEffect } from 'react';
+import Link from 'next/link';
+
+export default function MelodyLevelPage({ params }: { params: { level: string } }) {
+  console.log("RENDERING PAGE");
+  console.log("Params:", params);
+  console.log("Level param:", params?.level);
+  
+  useEffect(() => {
+    console.log("Component mounted");
+    console.log("Window location:", window.location.href);
+    console.log("Window pathname:", window.location.pathname);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-lg mx-auto bg-white rounded-lg shadow p-6">
+        <h1 className="text-3xl font-bold mb-4">Melody Level Page</h1>
+        <p className="text-xl mb-4">Level: {params?.level || "No level found"}</p>
+        <p className="mb-8">This is a simplified test page to debug routing issues.</p>
+        
+        <Link href="/melodies">
+          <div className="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+            Back to Levels
+          </div>
+        </Link>
+      </div>
+    </div>
+  );
+}

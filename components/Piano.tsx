@@ -1,16 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import * as Tone from 'tone';
+
 import { createPiano } from '@/lib/melodyGenerators';
 
-const Piano = ({ 
+interface PianoKey {
+  note: string;
+  degree: string;
+  soundNote: string;
+}
+
+interface PianoProps {
+  activeDegrees?: string[];
+  onKeyPress?: (degree: string) => void;
+  disabled?: boolean;
+  onToggleKey?: (selectedDegrees: string[]) => void;
+}
+
+interface BlackKeyProps {
+  keyData: PianoKey;
+  selectedKeys: Set<string>;
+  disabled: boolean;
+  handleKeyToggle: (degree: string) => void;
+  handleKeyPress: (degree: string, soundNote: string) => void;
+  onToggleKey: ((selectedDegrees: string[]) => void) | null;
+  position: string;
+}
+
+// Define a more specific interface for your piano object
+interface PianoObject {
+  triggerAttackRelease: (note: string, duration: string) => void;
+  dispose: () => void;
+}
+
+const Piano: React.FC<PianoProps> = ({ 
   activeDegrees = [],
   onKeyPress,
   disabled = false,
   onToggleKey = null
 }) => {
-  const [soundEnabled, setSoundEnabled] = useState(false);
-  const [piano, setPiano] = useState(null);
-  const [selectedKeys, setSelectedKeys] = useState(new Set(activeDegrees));
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
+  const [piano, setPiano] = useState<PianoObject | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(activeDegrees));
 
   useEffect(() => {
     if (soundEnabled && !piano) {
@@ -27,7 +56,7 @@ const Piano = ({
     setSelectedKeys(new Set(activeDegrees));
   }, [activeDegrees]);
 
-  const pianoKeys = [
+  const pianoKeys: PianoKey[] = [
     { note: 'C', degree: '1', soundNote: 'C4' },
     { note: 'C#', degree: '1#', soundNote: 'C#4' },
     { note: 'D', degree: '2', soundNote: 'D4' },
@@ -42,7 +71,7 @@ const Piano = ({
     { note: 'B', degree: '7', soundNote: 'B4' }
   ];
 
-  const handleKeyPress = (degree, soundNote) => {
+  const handleKeyPress = (degree: string, soundNote: string): void => {
     if (onKeyPress) {
       onKeyPress(degree);
     }
@@ -52,7 +81,7 @@ const Piano = ({
     }
   };
 
-  const handleKeyToggle = (degree) => {
+  const handleKeyToggle = (degree: string): void => {
     if (disabled) return;
     
     const newSelectedKeys = new Set(selectedKeys);
@@ -123,7 +152,7 @@ const Piano = ({
         <div className="absolute top-0 left-0 right-0 flex h-2/3">
           <div className="flex-1 relative">
             <BlackKey 
-              keyData={pianoKeys.find(k => k.degree === '1#')} 
+              keyData={pianoKeys.find(k => k.degree === '1#')!} 
               selectedKeys={selectedKeys}
               disabled={disabled}
               handleKeyToggle={handleKeyToggle}
@@ -135,7 +164,7 @@ const Piano = ({
           
           <div className="flex-1 relative">
             <BlackKey 
-              keyData={pianoKeys.find(k => k.degree === '2#')} 
+              keyData={pianoKeys.find(k => k.degree === '2#')!} 
               selectedKeys={selectedKeys}
               disabled={disabled}
               handleKeyToggle={handleKeyToggle}
@@ -149,7 +178,7 @@ const Piano = ({
           
           <div className="flex-1 relative">
             <BlackKey 
-              keyData={pianoKeys.find(k => k.degree === '4#')} 
+              keyData={pianoKeys.find(k => k.degree === '4#')!} 
               selectedKeys={selectedKeys}
               disabled={disabled}
               handleKeyToggle={handleKeyToggle}
@@ -161,7 +190,7 @@ const Piano = ({
           
           <div className="flex-1 relative">
             <BlackKey 
-              keyData={pianoKeys.find(k => k.degree === '5#')} 
+              keyData={pianoKeys.find(k => k.degree === '5#')!} 
               selectedKeys={selectedKeys}
               disabled={disabled}
               handleKeyToggle={handleKeyToggle}
@@ -173,7 +202,7 @@ const Piano = ({
           
           <div className="flex-1 relative">
             <BlackKey 
-              keyData={pianoKeys.find(k => k.degree === '6#')} 
+              keyData={pianoKeys.find(k => k.degree === '6#')!} 
               selectedKeys={selectedKeys}
               disabled={disabled}
               handleKeyToggle={handleKeyToggle}
@@ -190,7 +219,7 @@ const Piano = ({
   );
 };
 
-const BlackKey = ({ 
+const BlackKey: React.FC<BlackKeyProps> = ({ 
   keyData, 
   selectedKeys, 
   disabled, 
